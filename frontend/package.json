@@ -10,12 +10,21 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "bootstrap": "^5.3.8",
     "framer-motion": "^12.34.2",
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.574.0",
+    "mammoth": "^1.11.0",
+    "pptx-viewer": "^0.1.0",
+    "pptx2json": "^0.0.10",
     "react": "^19.2.0",
+    "react-bootstrap": "^2.10.10",
+    "react-doc-viewer": "^0.1.15",
     "react-dom": "^19.2.0",
+    "react-pdf": "^10.3.0",
     "react-player": "^3.4.0",
     "react-router-dom": "^7.13.0",
+    "react-sketch-canvas": "^6.2.0",
     "recharts": "^3.7.0",
     "three": "^0.183.0"
   },

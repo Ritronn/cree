@@ -1,25 +1,348 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Upload, Link as LinkIcon, FileText, Video, X, Plus, Zap, Play, BookOpen } from 'lucide-react';
+import { ArrowLeft, Upload, Link as LinkIcon, FileText, Video, X, Plus, Zap, Send, ChevronLeft, ChevronRight, Loader2, AlertCircle, Download, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import 'bootstrap/dist/css/bootstrap.min.css';
+
+// Import PDF viewer with correct CSS paths
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
+
+// Set up PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 export default function TopicWindow() {
+  const whiteboardRef = useRef(null);
+  const whiteboardInstance = useRef(null);
+  const fileInputRef = useRef(null);
   const navigate = useNavigate();
   const { topicId } = useParams();
+  
+  
   const [showAddContent, setShowAddContent] = useState(false);
   const [contentType, setContentType] = useState(null);
   const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [topicName, setTopicName] = useState(topicId === 'new' ? '' : 'Python Programming');
-  const [contentItems] = useState(topicId === 'new' ? [] : [
-    { id: 1, type: 'youtube', title: 'Python Functions Tutorial', thumbnail: 'https://via.placeholder.com/300x200' },
-    { id: 2, type: 'pdf', title: 'Python Basics.pdf', pages: 45 },
-  ]);
+  const [currentVideo, setCurrentVideo] = useState(null);
+  const [currentContent, setCurrentContent] = useState(null);
+  const [contents, setContents] = useState([]);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [docError, setDocError] = useState(null);
+  const [numPages, setNumPages] = useState(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pptViewer, setPptViewer] = useState('google'); // 'google' or 'microsoft'
+  
+  // Resizable panel states
+  const [leftWidth, setLeftWidth] = useState(256);
+  const [rightWidth, setRightWidth] = useState(384);
+  const [whiteboardHeight, setWhiteboardHeight] = useState(50);
+  const [isDraggingLeft, setIsDraggingLeft] = useState(false);
+  const [isDraggingRight, setIsDraggingRight] = useState(false);
+  const [isDraggingHorizontal, setIsDraggingHorizontal] = useState(false);
+
+  // Initialize Whiteboard.team
+  useEffect(() => {
+    if (whiteboardRef.current && !whiteboardInstance.current && window.api) {
+      try {
+        whiteboardInstance.current = new window.api.WhiteboardTeam(whiteboardRef.current, {
+          clientId: 'b6289bc542b7a2e592bb5f232c94114e',
+          boardCode: `velocity-${topicId}-${Date.now()}`
+        });
+      } catch (error) {
+        console.error('Whiteboard initialization error:', error);
+      }
+    }
+  }, [topicId]);
+
+  // Handle resizing
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (isDraggingLeft) {
+        const newWidth = Math.max(200, Math.min(500, e.clientX));
+        setLeftWidth(newWidth);
+      }
+      if (isDraggingRight) {
+        const newWidth = Math.max(300, Math.min(600, window.innerWidth - e.clientX));
+        setRightWidth(newWidth);
+      }
+      if (isDraggingHorizontal) {
+        const container = document.querySelector('.whiteboard-chat-container');
+        if (container) {
+          const rect = container.getBoundingClientRect();
+          const newHeight = ((e.clientY - rect.top) / rect.height) * 100;
+          setWhiteboardHeight(Math.max(30, Math.min(70, newHeight)));
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingLeft(false);
+      setIsDraggingRight(false);
+      setIsDraggingHorizontal(false);
+    };
+
+    if (isDraggingLeft || isDraggingRight || isDraggingHorizontal) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = isDraggingHorizontal ? 'ns-resize' : 'ew-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isDraggingLeft, isDraggingRight, isDraggingHorizontal]);
+
+  // Cleanup object URLs when content changes
+  useEffect(() => {
+    return () => {
+      contents.forEach(content => {
+        if (content.url && content.url.startsWith('blob:')) {
+          URL.revokeObjectURL(content.url);
+        }
+      });
+    };
+  }, [contents]);
+
+  const handleAddYouTube = () => {
+    if (youtubeUrl.trim()) {
+      const embedUrl = convertToEmbedUrl(youtubeUrl);
+      const newContent = {
+        id: Date.now(),
+        type: 'youtube',
+        url: embedUrl,
+        title: 'YouTube Video'
+      };
+      setContents([...contents, newContent]);
+      setCurrentContent(newContent);
+      setCurrentVideo(embedUrl);
+      setYoutubeUrl('');
+      setShowAddContent(false);
+      setContentType(null);
+    }
+  };
+
+  const convertToEmbedUrl = (url) => {
+    let videoId = '';
+    
+    if (url.includes('youtube.com/watch?v=')) {
+      videoId = url.split('v=')[1]?.split('&')[0];
+    } else if (url.includes('youtu.be/')) {
+      videoId = url.split('youtu.be/')[1]?.split('?')[0];
+    } else if (url.includes('youtube.com/embed/')) {
+      return url;
+    }
+    
+    return videoId ? `https://www.youtube.com/embed/${videoId}?rel=0` : url;
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setLoading(true);
+      setDocError(null);
+      
+      try {
+        const fileUrl = URL.createObjectURL(file);
+        
+        const newContent = {
+          id: Date.now(),
+          type: contentType,
+          url: fileUrl,
+          file: file,
+          title: file.name,
+          fileType: file.type
+        };
+        
+        setContents([...contents, newContent]);
+        setCurrentContent(newContent);
+        setCurrentVideo(null);
+        setShowAddContent(false);
+        setContentType(null);
+      } catch (error) {
+        console.error('File upload error:', error);
+        setDocError('Failed to load file. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleContentClick = (content) => {
+    setCurrentContent(content);
+    setDocError(null);
+    setPageNumber(1);
+    if (content.type === 'youtube') {
+      setCurrentVideo(content.url);
+    } else {
+      setCurrentVideo(null);
+    }
+  };
+
+  const handleSendMessage = () => {
+    if (chatInput.trim()) {
+      setChatMessages([...chatMessages, { id: Date.now(), text: chatInput, sender: 'user' }]);
+      setChatInput('');
+      setTimeout(() => {
+        setChatMessages(prev => [...prev, { 
+          id: Date.now(), 
+          text: 'This is a simulated AI response. Integration with AI coming soon!', 
+          sender: 'ai' 
+        }]);
+      }, 1000);
+    }
+  };
+
+  function onDocumentLoadSuccess({ numPages }) {
+    setNumPages(numPages);
+    setDocError(null);
+  }
+
+  function onDocumentLoadError(error) {
+    console.error('PDF load error:', error);
+    setDocError('Failed to load PDF. Please try again.');
+  }
+
+  // Render PDF using react-pdf
+  const renderPDF = () => {
+    if (!currentContent?.url) return null;
+    
+    return (
+      <div className="h-full flex flex-col">
+        <div className="bg-gray-800 p-2 flex items-center justify-between">
+          <span className="text-white text-sm truncate">{currentContent.title}</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPageNumber(Math.max(1, pageNumber - 1))}
+              disabled={pageNumber <= 1}
+              className="p-1 rounded bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-xs text-white">
+              Page {pageNumber} of {numPages || '?'}
+            </span>
+            <button
+              onClick={() => setPageNumber(Math.min(numPages || 1, pageNumber + 1))}
+              disabled={pageNumber >= (numPages || 1)}
+              className="p-1 rounded bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto p-4 bg-gray-900">
+          <Document
+            file={currentContent.url}
+            onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={onDocumentLoadError}
+            loading={
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="w-8 h-8 text-pink-500 animate-spin" />
+              </div>
+            }
+          >
+            <Page 
+              pageNumber={pageNumber} 
+              renderTextLayer={true}
+              renderAnnotationLayer={true}
+              className="mx-auto"
+              width={Math.min(800, window.innerWidth * 0.5)}
+            />
+          </Document>
+        </div>
+      </div>
+    );
+  };
+
+  // Render PPT using Google Docs Viewer
+  const renderPPT = () => {
+    if (!currentContent?.url) return null;
+    
+    // For blob URLs, we need to create a temporary URL for the viewer
+    // Since Google Viewer needs a publicly accessible URL, we'll use a proxy or convert to data URL
+    // For now, let's create a download link with preview options
+    
+    const pptViewerUrl = pptViewer === 'google' 
+      ? `https://docs.google.com/viewer?url=${encodeURIComponent(currentContent.url)}&embedded=true`
+      : `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(currentContent.url)}`;
+
+    return (
+      <div className="h-full flex flex-col">
+        <div className="bg-gray-800 p-2 flex items-center justify-between">
+          <span className="text-white text-sm truncate">{currentContent.title}</span>
+          <div className="flex items-center gap-2">
+            <select
+              value={pptViewer}
+              onChange={(e) => setPptViewer(e.target.value)}
+              className="bg-gray-700 text-white text-xs rounded px-2 py-1 border border-gray-600"
+            >
+              <option value="google">Google Viewer</option>
+              <option value="microsoft">Microsoft Viewer</option>
+            </select>
+            <a
+              href={currentContent.url}
+              download={currentContent.title}
+              className="p-1 rounded bg-white/10 hover:bg-white/20"
+              title="Download"
+            >
+              <Download className="w-4 h-4" />
+            </a>
+          </div>
+        </div>
+        <div className="flex-1 bg-gray-900">
+          <iframe
+            src={pptViewerUrl}
+            className="w-full h-full"
+            title={currentContent.title}
+            sandbox="allow-scripts allow-same-origin allow-forms"
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // Render Word using Microsoft Viewer
+  const renderWord = () => {
+    if (!currentContent?.url) return null;
+    
+    const wordViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(currentContent.url)}`;
+
+    return (
+      <div className="h-full flex flex-col">
+        <div className="bg-gray-800 p-2 flex items-center justify-between">
+          <span className="text-white text-sm truncate">{currentContent.title}</span>
+          <a
+            href={currentContent.url}
+            download={currentContent.title}
+            className="p-1 rounded bg-white/10 hover:bg-white/20"
+            title="Download"
+          >
+            <Download className="w-4 h-4" />
+          </a>
+        </div>
+        <div className="flex-1 bg-gray-900">
+          <iframe
+            src={wordViewerUrl}
+            className="w-full h-full"
+            title={currentContent.title}
+            sandbox="allow-scripts allow-same-origin allow-forms"
+          />
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 text-white">
       {/* Header */}
       <header className="border-b border-white/10 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-full px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/dashboard')}
@@ -30,147 +353,298 @@ export default function TopicWindow() {
             <Zap className="w-8 h-8 text-pink-500" fill="#E945F5" />
             <span className="text-xl font-bold">Velocity</span>
           </div>
-          <div className="flex items-center gap-4">
-            <button className="px-4 py-2 rounded-lg hover:bg-white/5 transition-colors">
-              Dashboard
-            </button>
-            <button className="px-4 py-2 rounded-lg hover:bg-white/5 transition-colors">
-              Progress
-            </button>
-          </div>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowAddContent(true)}
+            className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold"
+          >
+            <Plus className="w-5 h-5" />
+            Add Content
+          </motion.button>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-12">
-        {/* Topic Header */}
-        <div className="mb-12">
-          {topicId === 'new' ? (
-            <div className="max-w-2xl">
-              <h1 className="text-4xl font-bold mb-4">Create New Topic</h1>
-              <input
-                type="text"
-                value={topicName}
-                onChange={(e) => setTopicName(e.target.value)}
-                placeholder="Enter topic name (e.g., Python Programming)"
-                className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-xl focus:border-pink-500/50 focus:outline-none text-2xl font-semibold transition-colors"
+      {/* Main Layout */}
+      <div className="flex h-[calc(100vh-73px)]">
+        {/* Left Sidebar - Content List */}
+        <div 
+          className="border-r border-white/10 bg-black/20 backdrop-blur-sm overflow-y-auto"
+          style={{ width: `${leftWidth}px` }}
+        >
+          <div className="p-4">
+            <h3 className="text-sm font-semibold text-gray-400 mb-3">CONTENT</h3>
+            
+            {contents.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-gray-500">No content yet</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {/* YouTube Videos Section */}
+                {contents.filter(c => c.type === 'youtube').length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs text-gray-500 mb-2">Videos</p>
+                    {contents.filter(c => c.type === 'youtube').map((content) => (
+                      <motion.button
+                        key={content.id}
+                        whileHover={{ x: 4 }}
+                        onClick={() => handleContentClick(content)}
+                        className={`w-full p-3 rounded-lg border transition-all text-left ${
+                          currentContent?.id === content.id
+                            ? 'bg-pink-500/20 border-pink-500/50'
+                            : 'bg-white/5 border-white/10 hover:border-pink-500/30'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Video className="w-4 h-4 text-red-400 flex-shrink-0" />
+                          <span className="text-sm truncate">{content.title}</span>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
+
+                {/* PDF Section */}
+                {contents.filter(c => c.type === 'pdf').length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs text-gray-500 mb-2">PDFs</p>
+                    {contents.filter(c => c.type === 'pdf').map((content) => (
+                      <motion.button
+                        key={content.id}
+                        whileHover={{ x: 4 }}
+                        onClick={() => handleContentClick(content)}
+                        className={`w-full p-3 rounded-lg border transition-all text-left ${
+                          currentContent?.id === content.id
+                            ? 'bg-pink-500/20 border-pink-500/50'
+                            : 'bg-white/5 border-white/10 hover:border-pink-500/30'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                          <span className="text-sm truncate">{content.title}</span>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Word Section */}
+                {contents.filter(c => c.type === 'word').length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs text-gray-500 mb-2">Word Documents</p>
+                    {contents.filter(c => c.type === 'word').map((content) => (
+                      <motion.button
+                        key={content.id}
+                        whileHover={{ x: 4 }}
+                        onClick={() => handleContentClick(content)}
+                        className={`w-full p-3 rounded-lg border transition-all text-left ${
+                          currentContent?.id === content.id
+                            ? 'bg-pink-500/20 border-pink-500/50'
+                            : 'bg-white/5 border-white/10 hover:border-pink-500/30'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                          <span className="text-sm truncate">{content.title}</span>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
+
+                {/* PPT Section */}
+                {contents.filter(c => c.type === 'ppt').length > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2">Presentations</p>
+                    {contents.filter(c => c.type === 'ppt').map((content) => (
+                      <motion.button
+                        key={content.id}
+                        whileHover={{ x: 4 }}
+                        onClick={() => handleContentClick(content)}
+                        className={`w-full p-3 rounded-lg border transition-all text-left ${
+                          currentContent?.id === content.id
+                            ? 'bg-pink-500/20 border-pink-500/50'
+                            : 'bg-white/5 border-white/10 hover:border-pink-500/30'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Upload className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                          <span className="text-sm truncate">{content.title}</span>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Left Resize Handle */}
+        <div
+          className="w-1 hover:w-1.5 bg-transparent hover:bg-pink-500/50 cursor-ew-resize transition-all relative group"
+          onMouseDown={() => setIsDraggingLeft(true)}
+        >
+          <div className="absolute inset-y-0 -left-1 -right-1" />
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col lg:flex-row min-w-0">
+          {/* Left: Video/PDF/PPT Player */}
+          <div className="flex-1 p-6 overflow-y-auto">
+            <div className="max-w-4xl mx-auto">
+              {currentContent ? (
+                <>
+                  {currentContent.type === 'youtube' && (
+                    <div className="mb-6">
+                      <div className="ratio ratio-16x9">
+                        <iframe 
+                          src={currentContent.url}
+                          title="YouTube video" 
+                          allowFullScreen
+                          className="rounded-xl"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {currentContent.type === 'pdf' && (
+                    <div className="bg-white/5 rounded-xl overflow-hidden mb-6" style={{ height: '70vh' }}>
+                      {renderPDF()}
+                    </div>
+                  )}
+
+                  {currentContent.type === 'ppt' && (
+                    <div className="bg-white/5 rounded-xl overflow-hidden mb-6" style={{ height: '70vh' }}>
+                      {renderPPT()}
+                    </div>
+                  )}
+
+                  {currentContent.type === 'word' && (
+                    <div className="bg-white/5 rounded-xl overflow-hidden mb-6" style={{ height: '70vh' }}>
+                      {renderWord()}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="aspect-video bg-black/50 rounded-xl flex items-center justify-center mb-6">
+                  <div className="text-center">
+                    <Video className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-400">No content selected</p>
+                    <button
+                      onClick={() => setShowAddContent(true)}
+                      className="mt-4 text-pink-400 hover:text-pink-300 transition-colors text-sm"
+                    >
+                      Add your first content
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {currentContent && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full py-3 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold hover:shadow-lg hover:shadow-pink-500/50 transition-all"
+                >
+                  Take Assessment
+                </motion.button>
+              )}
+            </div>
+          </div>
+
+          {/* Right Resize Handle */}
+          <div
+            className="w-1 hover:w-1.5 bg-transparent hover:bg-pink-500/50 cursor-ew-resize transition-all relative group"
+            onMouseDown={() => setIsDraggingRight(true)}
+          >
+            <div className="absolute inset-y-0 -left-1 -right-1" />
+          </div>
+
+          {/* Right: Whiteboard & Chat */}
+          <div 
+            className="border-l border-white/10 flex flex-col whiteboard-chat-container"
+            style={{ width: `${rightWidth}px` }}
+          >
+            {/* Whiteboard */}
+            <div 
+              className="border-b border-white/10 flex flex-col"
+              style={{ height: `${whiteboardHeight}%` }}
+            >
+              <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20">
+                <h3 className="font-semibold">Whiteboard</h3>
+              </div>
+              <div 
+                ref={whiteboardRef}
+                id="wt-container"
+                style={{ width: '100%', height: 'calc(100% - 57px)' }}
+                className="bg-white"
               />
             </div>
-          ) : (
-            <div>
-              <h1 className="text-4xl font-bold mb-2">{topicName}</h1>
-              <div className="flex items-center gap-6 text-gray-400">
-                <span>Mastery: 87%</span>
-                <span>•</span>
-                <span>5 Content Items</span>
-                <span>•</span>
-                <span>Difficulty: Hard</span>
-              </div>
+
+            {/* Horizontal Resize Handle */}
+            <div
+              className="h-1 hover:h-1.5 bg-transparent hover:bg-pink-500/50 cursor-ns-resize transition-all relative group"
+              onMouseDown={() => setIsDraggingHorizontal(true)}
+            >
+              <div className="absolute inset-x-0 -top-1 -bottom-1" />
             </div>
-          )}
-        </div>
 
-        {/* Content Window */}
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left: Content List */}
-          <div className="lg:col-span-1">
-            <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold">Content Library</h2>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setShowAddContent(true)}
-                  className="p-2 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg hover:shadow-lg hover:shadow-pink-500/50 transition-all"
-                >
-                  <Plus className="w-5 h-5" />
-                </motion.button>
+            {/* Chat Interface */}
+            <div 
+              className="flex flex-col bg-black/20"
+              style={{ height: `${100 - whiteboardHeight}%` }}
+            >
+              <div className="p-4 border-b border-white/10">
+                <h3 className="font-semibold">Ask Questions</h3>
               </div>
-
-              {contentItems.length === 0 ? (
-                <div className="text-center py-12">
-                  <BookOpen className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                  <p className="text-gray-400 mb-4">No content yet</p>
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {chatMessages.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-8">
+                    Ask questions about the content
+                  </p>
+                ) : (
+                  chatMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[80%] px-4 py-2 rounded-lg ${
+                          msg.sender === 'user'
+                            ? 'bg-gradient-to-r from-pink-500 to-blue-500'
+                            : 'bg-white/10'
+                        }`}
+                      >
+                        <p className="text-sm">{msg.text}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="p-4 border-t border-white/10">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder="Type your question..."
+                    className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-pink-500/50 focus:outline-none text-sm"
+                  />
                   <button
-                    onClick={() => setShowAddContent(true)}
-                    className="text-pink-400 hover:text-pink-300 transition-colors text-sm"
+                    onClick={handleSendMessage}
+                    className="p-2 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg hover:shadow-lg hover:shadow-pink-500/50 transition-all"
                   >
-                    Add your first content
+                    <Send className="w-5 h-5" />
                   </button>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {contentItems.map((item) => (
-                    <motion.div
-                      key={item.id}
-                      whileHover={{ x: 4 }}
-                      className="p-4 bg-white/5 rounded-xl border border-white/10 hover:border-pink-500/30 cursor-pointer transition-all"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg ${item.type === 'youtube' ? 'bg-red-500/20' : 'bg-blue-500/20'}`}>
-                          {item.type === 'youtube' ? (
-                            <Video className="w-5 h-5 text-red-400" />
-                          ) : (
-                            <FileText className="w-5 h-5 text-blue-400" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-sm truncate">{item.title}</h3>
-                          <p className="text-xs text-gray-400 mt-1">
-                            {item.type === 'youtube' ? 'Video' : `${item.pages} pages`}
-                          </p>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right: Content Viewer */}
-          <div className="lg:col-span-2">
-            <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-8 min-h-[600px]">
-              {contentItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-pink-500/20 to-blue-500/20 flex items-center justify-center mb-6">
-                    <Upload className="w-12 h-12 text-pink-400" />
-                  </div>
-                  <h3 className="text-2xl font-bold mb-3">Add Your First Content</h3>
-                  <p className="text-gray-400 mb-8 max-w-md">
-                    Upload a YouTube video, PDF, or PowerPoint to start learning. Our AI will extract key concepts and generate assessments.
-                  </p>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setShowAddContent(true)}
-                    className="px-8 py-3 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold hover:shadow-lg hover:shadow-pink-500/50 transition-all"
-                  >
-                    Add Content
-                  </motion.button>
-                </div>
-              ) : (
-                <div>
-                  <div className="aspect-video bg-black/50 rounded-xl mb-6 flex items-center justify-center">
-                    <Play className="w-16 h-16 text-white/50" />
-                  </div>
-                  <h3 className="text-2xl font-bold mb-4">Python Functions Tutorial</h3>
-                  <p className="text-gray-400 mb-6">
-                    Learn about Python functions, parameters, return values, and more in this comprehensive tutorial.
-                  </p>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-8 py-3 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold hover:shadow-lg hover:shadow-pink-500/50 transition-all"
-                  >
-                    Take Assessment
-                  </motion.button>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Add Content Modal */}
       <AnimatePresence>
@@ -193,7 +667,7 @@ export default function TopicWindow() {
               className="w-full max-w-2xl bg-gradient-to-br from-slate-900 to-purple-900/50 rounded-2xl border border-white/10"
             >
               <div className="p-6 border-b border-white/10 flex items-center justify-between">
-                <h2 className="text-2xl font-bold">Add Learning Content</h2>
+                <h2 className="text-2xl font-bold">Add Content</h2>
                 <button onClick={() => setShowAddContent(false)} className="p-2 hover:bg-white/10 rounded-lg">
                   <X className="w-5 h-5" />
                 </button>
@@ -202,8 +676,6 @@ export default function TopicWindow() {
               <div className="p-6">
                 {!contentType ? (
                   <div className="space-y-4">
-                    <p className="text-gray-400 mb-6">Choose content type</p>
-                    
                     <button
                       onClick={() => setContentType('youtube')}
                       className="w-full p-6 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-pink-500/50 transition-all flex items-center gap-4"
@@ -214,6 +686,19 @@ export default function TopicWindow() {
                       <div className="text-left">
                         <h3 className="text-lg font-bold">YouTube Video</h3>
                         <p className="text-sm text-gray-400">Paste a YouTube link</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setContentType('word')}
+                      className="w-full p-6 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-pink-500/50 transition-all flex items-center gap-4"
+                    >
+                      <div className="p-4 rounded-xl bg-blue-500/20">
+                        <FileText className="w-8 h-8 text-blue-500" />
+                      </div>
+                      <div className="text-left">
+                        <h3 className="text-lg font-bold">Word Document</h3>
+                        <p className="text-sm text-gray-400">Upload a Word file</p>
                       </div>
                     </button>
 
@@ -263,8 +748,11 @@ export default function TopicWindow() {
                       </div>
                     </div>
 
-                    <button className="w-full py-3 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold">
-                      Process Video
+                    <button 
+                      onClick={handleAddYouTube}
+                      className="w-full py-3 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold"
+                    >
+                      Confirm
                     </button>
                   </div>
                 ) : (
@@ -273,14 +761,45 @@ export default function TopicWindow() {
                       ← Back
                     </button>
                     
-                    <div className="border-2 border-dashed border-white/20 rounded-xl p-12 text-center hover:border-pink-500/50 cursor-pointer">
-                      <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-400">Drop your file here or click to browse</p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept={
+                        contentType === 'pdf' ? '.pdf' : 
+                        contentType === 'ppt' ? '.ppt,.pptx' : 
+                        '.doc,.docx'
+                      }
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    
+                    <div 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-white/20 rounded-xl p-12 text-center hover:border-pink-500/50 cursor-pointer transition-all"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="w-12 h-12 text-pink-400 mx-auto mb-4 animate-spin" />
+                          <p className="text-gray-400">Uploading...</p>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-400">
+                            Click to select {
+                              contentType === 'pdf' ? 'PDF' : 
+                              contentType === 'ppt' ? 'PowerPoint' : 
+                              'Word'
+                            } file
+                          </p>
+                          <p className="text-sm text-gray-500 mt-2">
+                            {contentType === 'pdf' ? 'Supported: .pdf' : 
+                             contentType === 'ppt' ? 'Supported: .ppt, .pptx' : 
+                             'Supported: .doc, .docx'}
+                          </p>
+                        </>
+                      )}
                     </div>
-
-                    <button className="w-full py-3 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold">
-                      Upload & Process
-                    </button>
                   </div>
                 )}
               </div>
