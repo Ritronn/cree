@@ -26,6 +26,15 @@ from quizzes.models import SubmitAssignment
 
 from quizzes.models import CreateQuiz_1
 
+# Import recommendation system
+try:
+    from courses.recommendations import get_recommendations_for_user
+except ImportError:
+    # Pandas not available - use fallback
+    def get_recommendations_for_user(user):
+        return []
+from courses.content_scraper import scrape_content_for_user
+
 UserModel = get_user_model()
 
 #Signin - forgot password + signin with google accounts/github/linkedin accounts.
@@ -192,7 +201,18 @@ def stcontact(request):
 def dashstu(request):
     cour = Enroll.objects.filter(student=request.user)
     det = Userdetail.objects.filter(name=request.user).first()
-    return render(request, 'studentdash.html',{'course': cour, 'det':det})
+    
+    # Get personalized recommendations
+    try:
+        recommended = get_recommendations_for_user(request.user, method='knn', n=5)
+    except:
+        recommended = []
+    
+    return render(request, 'studentdash.html', {
+        'course': cour,
+        'det': det,
+        'recommended_courses': recommended
+    })
 
 @login_required
 def dashteach(request):
@@ -222,3 +242,33 @@ def dashboard(request):
 def addquestion(request):
     quiz = CreateQuiz_1.objects.filter(author=request.user)
     return render(request, 'addquestion.html', {'quiz': quiz})
+
+@login_required
+def personalized_recommendations(request, course_id):
+    """
+    Show personalized content based on user's weak areas
+    Complete adaptive learning workflow:
+    1. Analyze quiz performance
+    2. Identify weak topics
+    3. Scrape relevant content
+    4. Display recommendations
+    """
+    from courses.models import Course
+    
+    course = Course.objects.get(id=course_id)
+    
+    # Get weak topics and scrape content
+    recommendations = scrape_content_for_user(request.user, course)
+    
+    # Count total resources
+    total_resources = 0
+    for rec in recommendations:
+        total_resources += len(rec.get('articles', []))
+        total_resources += len(rec.get('playlists', []))
+        total_resources += len(rec.get('questions', []))
+    
+    return render(request, 'personalized_recommendations.html', {
+        'course': course,
+        'recommendations': recommendations,
+        'total_resources': total_resources
+    })

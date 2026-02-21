@@ -11,11 +11,13 @@ urlpatterns = [
     path('contactus/',Contactus,name='contactus'),
     path('aboutus/',aboutUs,name='about'),
     path('', include('accounts.urls', namespace='accounts')),
+    path('accounts/api/', include('accounts.api_urls')),  # API endpoints for authentication
     # path('chatbot/', include('chatbot.urls', namespace='chatbot')),
     path('courses/', include('courses.urls', namespace='courses')),
     path('discussions/', include('discussions.urls', namespace='discussions')),
     path('quizzes/', include('quizzes.urls', namespace='quizzes')),
     path('leaderboard/', include('leaderboard.urls', namespace='leaderboard')),
+    path('api/adaptive/', include('adaptive_learning.urls')),  # Adaptive Learning API
     path('',include('django.contrib.auth.urls')),
 ]
 

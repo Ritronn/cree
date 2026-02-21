@@ -4,6 +4,7 @@ from django.contrib.auth.views import PasswordResetView,PasswordResetDoneView,Pa
 from .forms import *
 from .views import *
 from .forms import *
+
 app_name = 'accounts'
 
 urlpatterns = [
@@ -42,5 +43,6 @@ urlpatterns = [
     path('quizteach/', quizteach, name='quizteach'),
     path('quizstu/', quizstu, name='quizstu'),
     path('addquestion/', addquestion, name='addquestion'),
+    path('recommendations/<int:course_id>/', personalized_recommendations, name='personalized_recommendations'),
     
 ]

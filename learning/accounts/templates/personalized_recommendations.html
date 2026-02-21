@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block banner %}
+<h1 class="text-white">
+    Personalized Recommendations for {{ course.name }}
+</h1>
+<p class="mx-auto text-white mt-20 mb-40">
+    Based on your quiz performance, here are resources to help you improve
+</p>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>📚 Your Learning Path</h2>
+            <p>We analyzed your quiz results and found {{ recommendations|length }} topic(s) where you can improve.</p>
+            <p><strong>Total Resources Found: {{ total_resources }}</strong></p>
+            <hr>
+        </div>
+    </div>
+
+    {% if recommendations %}
+        {% for rec in recommendations %}
+        <div class="row" style="margin-bottom: 40px;">
+            <div class="col-md-12">
+                <div class="panel panel-primary">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">🎯 Weak Topic: {{ rec.topic }}</h3>
+                    </div>
+                    <div class="panel-body">
+                        <p>You scored below 70% on this topic. Here are personalized resources to help you:</p>
+                        
+                        <!-- Articles Section -->
+                        {% if rec.articles %}
+                        <div style="margin-top: 20px;">
+                            <h4>📄 Articles & Tutorials ({{ rec.articles|length }})</h4>
+                            <ul class="list-group">
+                                {% for article in rec.articles %}
+                                <li class="list-group-item">
+                                    <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">
+                                        {{ article.title }}
+                                    </a>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- YouTube Playlists Section -->
+                        {% if rec.playlists %}
+                        <div style="margin-top: 20px;">
+                            <h4>🎥 Video Playlists ({{ rec.playlists|length }})</h4>
+                            <ul class="list-group">
+                                {% for playlist in rec.playlists %}
+                                <li class="list-group-item">
+                                    <a href="{{ playlist.url }}" target="_blank" rel="noopener noreferrer">
+                                        {{ playlist.title }}
+                                    </a>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Stack Overflow Questions Section -->
+                        {% if rec.questions %}
+                        <div style="margin-top: 20px;">
+                            <h4>❓ Q&A from Stack Overflow ({{ rec.questions|length }})</h4>
+                            <ul class="list-group">
+                                {% for question in rec.questions %}
+                                <li class="list-group-item">
+                                    <a href="{{ question.url }}" target="_blank" rel="noopener noreferrer">
+                                        {{ question.title }}
+                                    </a>
+                                    <span class="badge">{{ question.score }} votes</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="row">
+            <div class="col-md-12">
+                <div class="alert alert-success">
+                    <h4>🎉 Great Job!</h4>
+                    <p>You don't have any weak topics in this course. You're doing excellent!</p>
+                    <p>Keep taking quizzes to maintain your performance.</p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="row" style="margin-top: 30px;">
+        <div class="col-md-12">
+            <a href="{% url 'courses:courmat' course.id %}" class="btn btn-primary">Back to Course</a>
+            <a href="{% url 'accounts:dashstu' %}" class="btn btn-default">Back to Dashboard</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

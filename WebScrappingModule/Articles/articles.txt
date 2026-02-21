@@ -1,13 +1,38 @@
-https://docs.python.org/3/tutorial/
-https://www.w3schools.com/python/
-https://www.tutorialspoint.com/python/index.htm
-https://www.learnpython.org/
-https://www.javatpoint.com/python-tutorial
-https://skillcrush.com/blog/what-is-python-used-for
-https://skillcrush.com/blog/what-is-python-used-for
-https://www.quora.com/Can-I-learn-Python-by-myself
-https://www.amazon.in/Learn-Python-Days-Beginners-Advanced-ebook/dp/B08C47LDS7
-https://www.w3schools.com/python/python_intro.asp
-https://www.programiz.com/python-programming/tutorial
-https://www.programiz.com/python-programming
-https://www.guru99.com/python-tutorials.html
+# React hooks Articles (Google)
+# Scraped: 2026-02-20 01:14:14
+# Total: 10
+
+https://www.google.co.in/intl/en/about/products?tab=wh
+  Title: https://www.google.co.in/intl/en/about/products?tab=wh
+
+https://react.dev/learn
+  Title: React documentation
+
+https://www.freecodecamp.org/news/full-guide-to-react-hooks/
+  Title: freeCodeCamp
+
+https://legacy.reactjs.org/docs/hooks-overview.html#:~:text=First%2C%20we'll%20extract%20this,%7D);%20return%20isOnline;%20%7D
+  Title: https://legacy.reactjs.org/docs/hooks-overview.html#:~:text=First%2C%20we'll%20extract%20this,%7D);%20return%20isOnline;%20%7D
+
+https://www.w3schools.com/react/react_hooks.asp#:~:text=import%20%7B%20useState%20%7D%20from%20'react,120x600
+  Title: https://www.w3schools.com/react/react_hooks.asp#:~:text=import%20%7B%20useState%20%7D%20from%20'react,120x600
+
+https://www.freecodecamp.org/news/full-guide-to-react-hooks/
+  Title: https://www.freecodecamp.org/news/full-guide-to-react-hooks/
+
+https://www.w3schools.com/react/react_hooks.asp
+  Title: React Hooks
+W3Schools
+https://www.w3schools.com › react › react_hooks
+
+https://www.w3schools.com/react/react_hooks.asp#:~:text=What%20is%20a%20Hook%3F,Example%3AGet%20your%20own%20React.js%20Server
+  Title: Read more
+
+https://react.dev/reference/react/hooks
+  Title: Built-in React Hooks
+React
+https://react.dev › reference › react › hooks
+
+https://react.dev/reference/react/hooks#:~:text=Hooks%20let%20you%20use%20different,them%20to%20build%20your%20own.
+  Title: Read more
+

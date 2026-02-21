@@ -1,0 +1,109 @@
+{
+  "topic": "React hooks",
+  "articles": [
+    {
+      "url": "https://www.google.co.in/intl/en/about/products?tab=wh",
+      "title": "https://www.google.co.in/intl/en/about/products?tab=wh",
+      "source": "google"
+    },
+    {
+      "url": "https://react.dev/learn",
+      "title": "React documentation",
+      "source": "google"
+    },
+    {
+      "url": "https://www.freecodecamp.org/news/full-guide-to-react-hooks/",
+      "title": "freeCodeCamp",
+      "source": "google"
+    },
+    {
+      "url": "https://legacy.reactjs.org/docs/hooks-overview.html#:~:text=First%2C%20we'll%20extract%20this,%7D);%20return%20isOnline;%20%7D",
+      "title": "https://legacy.reactjs.org/docs/hooks-overview.html#:~:text=First%2C%20we'll%20extract%20this,%7D);%20return%20isOnline;%20%7D",
+      "source": "google"
+    },
+    {
+      "url": "https://www.w3schools.com/react/react_hooks.asp#:~:text=import%20%7B%20useState%20%7D%20from%20'react,120x600",
+      "title": "https://www.w3schools.com/react/react_hooks.asp#:~:text=import%20%7B%20useState%20%7D%20from%20'react,120x600",
+      "source": "google"
+    },
+    {
+      "url": "https://www.freecodecamp.org/news/full-guide-to-react-hooks/",
+      "title": "https://www.freecodecamp.org/news/full-guide-to-react-hooks/",
+      "source": "google"
+    },
+    {
+      "url": "https://www.w3schools.com/react/react_hooks.asp",
+      "title": "React Hooks\nW3Schools\nhttps://www.w3schools.com \u203a react \u203a react_hooks",
+      "source": "google"
+    },
+    {
+      "url": "https://www.w3schools.com/react/react_hooks.asp#:~:text=What%20is%20a%20Hook%3F,Example%3AGet%20your%20own%20React.js%20Server",
+      "title": "Read more",
+      "source": "google"
+    },
+    {
+      "url": "https://react.dev/reference/react/hooks",
+      "title": "Built-in React Hooks\nReact\nhttps://react.dev \u203a reference \u203a react \u203a hooks",
+      "source": "google"
+    },
+    {
+      "url": "https://react.dev/reference/react/hooks#:~:text=Hooks%20let%20you%20use%20different,them%20to%20build%20your%20own.",
+      "title": "Read more",
+      "source": "google"
+    }
+  ],
+  "playlists": [
+    {
+      "url": "https://www.youtube.com/watch?v=cF2lQ_gZeA8",
+      "title": "36 lessons",
+      "channel": "YouTube"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=lAW1Jmmr9hc",
+      "title": "React Hooks Tutorial - 2 - useState Hook \u00b7 10:45",
+      "channel": "YouTube"
+    },
+    {
+      "url": "https://www.youtube.com/playlist?list=PLC3y8-rFHvwisvxhZ135pogtX7_Oe3Q3A",
+      "title": "View full course",
+      "channel": "YouTube"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=O6P86uwfdR0",
+      "title": "19 lessons",
+      "channel": "YouTube"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=0ZJgIjIuY7U",
+      "title": "Learn useEffect In 13 Minutes \u00b7 13:38",
+      "channel": "YouTube"
+    },
+    {
+      "url": "https://www.youtube.com/playlist?list=PLZlA0Gpn_vH8EtggFGERCwMY5u5hOjf-h",
+      "title": "View full course",
+      "channel": "YouTube"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=I0w1ndjYzB0",
+      "title": "10 lessons",
+      "channel": "YouTube"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=s-AaaDIzgQw",
+      "title": "Master React Hook | useState Hook in React from Basic to Advance in Hindi | useState in React JS \u00b7 30:20",
+      "channel": "YouTube"
+    },
+    {
+      "url": "https://www.youtube.com/playlist?list=PLp18NAIKHWnstlf3dqt9WoKqNKOkYxRbY",
+      "title": "View full course",
+      "channel": "YouTube"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=-mJFZp84TIY",
+      "title": "78 lessons",
+      "channel": "YouTube"
+    }
+  ],
+  "questions": [],
+  "scraped_at": "2026-02-20 01:14:14"
+}

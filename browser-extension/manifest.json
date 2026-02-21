@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "MindForge Focus Extension",
+  "version": "1.0",
+  "description": "Tab monitoring and website blocking for better focus",
+  
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "storage",
+    "notifications",
+    "webNavigation"
+  ],
+  
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  
+  "externally_connectable": {
+    "matches": ["http://localhost:3000/*", "http://localhost:5173/*", "https://*.vercel.app/*"]
+  },
+  
+  "background": {
+    "service_worker": "background.js"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MindForge Focus"
+  }
+}

@@ -12,6 +12,9 @@ from quizzes.models import CreateAssignment
 
 from quizzes.models import SubmitAssignment
 
+# Import recommendation system
+from .recommendations import get_recommendations_for_user
+
 @login_required
 def allcourse(request):
     query = request.GET.get('q', None)
@@ -20,7 +23,17 @@ def allcourse(request):
         return render(request, 'allcourse.html', {'course': results})
     else:
         cour = Course.objects.all()
-        return render(request, 'allcourse.html', {'course': cour})
+        
+        # Get personalized recommendations
+        try:
+            recommended = get_recommendations_for_user(request.user, method='knn', n=5)
+        except:
+            recommended = []
+        
+        return render(request, 'allcourse.html', {
+            'course': cour,
+            'recommended_courses': recommended
+        })
 
 @login_required
 def addcourse(request):

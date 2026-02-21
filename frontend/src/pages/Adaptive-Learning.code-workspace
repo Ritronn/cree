@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"name": "Adaptive-Learning",
+			"path": "../../.."
+		}
+	],
+	"settings": {
+		"kiroAgent.configureMCP": "Disabled",
+		"javascript.autoClosingTags": false
+	}
+}
