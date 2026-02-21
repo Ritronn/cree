@@ -1,0 +1,278 @@
+{
+    "name": "Weekly Test Generator from Sessions",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "triggerAtDay": 7,
+                            "triggerAtHour": 10
+                        }
+                    ]
+                }
+            },
+            "id": "schedule-trigger",
+            "name": "Every Sunday 10 AM",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.2,
+            "position": [
+                0,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "trigger-weekly-test",
+                "options": {}
+            },
+            "id": "manual-webhook-trigger",
+            "name": "Manual Webhook Trigger",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                0,
+                200
+            ],
+            "webhookId": "manual-trigger-uuid"
+        },
+        {
+            "parameters": {
+                "url": "={{$env.API_BASE_URL || 'http://localhost:3000'}}/api/sessions/all-users?days=7",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "fetch-all-sessions",
+            "name": "Fetch All Users Sessions",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                220,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Extract the array of users with their sessions\nconst response = $input.first().json;\nconst usersData = response.data || [];\n\n// Return each user as a separate item for the loop\nreturn usersData.map(user => ({\n  json: {\n    userId: user.userId,\n    userName: user.userName,\n    userEmail: user.userEmail,\n    sessionCount: user.sessionCount,\n    topics: user.context.topics,\n    allKeyConcepts: user.context.allKeyConcepts,\n    totalDuration: user.context.totalDuration,\n    summaries: user.context.summaries,\n    sessions: user.sessions\n  }\n}));"
+            },
+            "id": "split-users",
+            "name": "Split Into Users",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                440,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Build the AI prompt to generate a comprehensive weekly test\nconst item = $input.first().json;\n\nconst prompt = `You are an expert educator. Based on the following study sessions from this week, create a comprehensive weekly test.\n\nSTUDENT: ${item.userName}\nNUMBER OF SESSIONS: ${item.sessionCount}\nTOTAL STUDY TIME: ${item.totalDuration} minutes\n\nTOPICS COVERED:\n${item.topics.map((t, i) => `${i+1}. ${t}`).join('\\n')}\n\nKEY CONCEPTS:\n${item.allKeyConcepts.join(', ')}\n\nSESSION DETAILS:\n${item.summaries}\n\nCREATE A TEST WITH EXACTLY 15 QUESTIONS:\n- 10 Multiple Choice Questions (MCQ) with 4 options each\n- 5 Short Answer Questions\n\nIMPORTANT: Return ONLY valid JSON in this exact format, no other text:\n{\n  \"title\": \"Weekly Test - [Date Range]\",\n  \"questions\": [\n    {\n      \"id\": 1,\n      \"type\": \"mcq\",\n      \"question\": \"Your question here?\",\n      \"options\": [\"A) Option 1\", \"B) Option 2\", \"C) Option 3\", \"D) Option 4\"],\n      \"correct_answer\": \"A\",\n      \"topic\": \"Topic name\",\n      \"difficulty\": \"easy|medium|hard\",\n      \"explanation\": \"Brief explanation of the answer\"\n    },\n    {\n      \"id\": 11,\n      \"type\": \"short_answer\",\n      \"question\": \"Your question here?\",\n      \"correct_answer\": \"Expected answer\",\n      \"topic\": \"Topic name\",\n      \"difficulty\": \"easy|medium|hard\",\n      \"explanation\": \"Brief explanation\"\n    }\n  ]\n}`;\n\nreturn [{\n  json: {\n    ...item,\n    aiPrompt: prompt\n  }\n}];"
+            },
+            "id": "build-ai-prompt",
+            "name": "Build AI Prompt",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                660,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "url": "https://api.groq.com/openai/v1/chat/completions",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "=Bearer {{$env.GROQ_API_KEY}}"
+                        },
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"model\": \"{{$env.GROQ_MODEL || 'llama3-70b-8192'}}\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an expert test generator. Always respond with valid JSON only, no markdown formatting.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.aiPrompt) }}\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 4000,\n  \"response_format\": { \"type\": \"json_object\" }\n}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    },
+                    "timeout": 60000
+                }
+            },
+            "id": "groq-generate",
+            "name": "Generate Test (Groq)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                900,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Parse the AI response and prepare test data\nconst item = $('Build AI Prompt').first().json;\nlet aiResponse;\n\ntry {\n  const raw = $input.first().json;\n  // Groq uses OpenAI format\n  if (raw.choices) {\n    const content = raw.choices[0].message.content;\n    aiResponse = JSON.parse(content);\n  } else {\n    aiResponse = raw;\n  }\n} catch (e) {\n  // Fallback: generate a basic test from session data\n  const questions = [];\n  const concepts = item.allKeyConcepts;\n  \n  for (let i = 0; i < Math.min(15, concepts.length); i++) {\n    if (i < 10) {\n      questions.push({\n        id: i + 1,\n        type: 'mcq',\n        question: `Which of the following best describes \"${concepts[i]}\"?`,\n        options: [\n          `A) A fundamental concept in ${item.topics[0] || 'this subject'}`,\n          `B) An advanced technique used in modern systems`,\n          `C) A deprecated methodology no longer in use`,\n          `D) None of the above`\n        ],\n        correct_answer: 'A',\n        topic: item.topics[i % item.topics.length] || 'General',\n        difficulty: 'medium',\n        explanation: `${concepts[i]} is a key concept covered in the sessions.`\n      });\n    } else {\n      questions.push({\n        id: i + 1,\n        type: 'short_answer',\n        question: `Explain the concept of \"${concepts[i]}\" in your own words.`,\n        correct_answer: `${concepts[i]} - as discussed in the session on ${item.topics[i % item.topics.length]}`,\n        topic: item.topics[i % item.topics.length] || 'General',\n        difficulty: 'medium',\n        explanation: 'Review the session notes for a comprehensive understanding.'\n      });\n    }\n  }\n  \n  aiResponse = {\n    title: `Weekly Test - ${new Date().toLocaleDateString()}`,\n    questions: questions\n  };\n}\n\n// Calculate expiry (6 hours from now)\nconst now = new Date();\nconst expiresAt = new Date(now.getTime() + 6 * 60 * 60 * 1000);\n\nreturn [{\n  json: {\n    userId: item.userId,\n    userName: item.userName,\n    userEmail: item.userEmail,\n    title: aiResponse.title || `Weekly Test - ${now.toLocaleDateString()}`,\n    questions: aiResponse.questions || [],\n    totalQuestions: (aiResponse.questions || []).length,\n    createdAt: now.toISOString(),\n    expiresAt: expiresAt.toISOString()\n  }\n}];"
+            },
+            "id": "parse-ai-response",
+            "name": "Parse AI Response",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1150,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "url": "={{$env.API_BASE_URL || 'http://localhost:3000'}}/api/tests",
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"userId\": \"{{ $json.userId }}\",\n  \"title\": {{ JSON.stringify($json.title) }},\n  \"questions\": {{ JSON.stringify($json.questions) }},\n  \"totalQuestions\": {{ $json.totalQuestions }}\n}",
+                "options": {
+                    "response": {
+                        "response": {
+                            "responseFormat": "json"
+                        }
+                    }
+                }
+            },
+            "id": "save-test",
+            "name": "Save Test to Database",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                1400,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Log the result for each user\nconst testData = $('Parse AI Response').first().json;\nconst saveResult = $input.first().json;\n\nconsole.log(`✅ Test created for ${testData.userName}`);\nconsole.log(`   📝 Title: ${testData.title}`);\nconsole.log(`   ❓ Questions: ${testData.totalQuestions}`);\nconsole.log(`   ⏰ Expires: ${testData.expiresAt}`);\n\nreturn [{\n  json: {\n    status: 'success',\n    userName: testData.userName,\n    userEmail: testData.userEmail,\n    testTitle: testData.title,\n    totalQuestions: testData.totalQuestions,\n    expiresAt: testData.expiresAt,\n    testId: saveResult.data?.id || 'unknown',\n    message: `Weekly test created for ${testData.userName} with ${testData.totalQuestions} questions. Expires at ${testData.expiresAt}`\n  }\n}];"
+            },
+            "id": "log-result",
+            "name": "Log Result",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1650,
+                0
+            ]
+        }
+    ],
+    "connections": {
+        "Every Sunday 10 AM": {
+            "main": [
+                [
+                    {
+                        "node": "Fetch All Users Sessions",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Manual Webhook Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Fetch All Users Sessions",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Fetch All Users Sessions": {
+            "main": [
+                [
+                    {
+                        "node": "Split Into Users",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Split Into Users": {
+            "main": [
+                [
+                    {
+                        "node": "Build AI Prompt",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Build AI Prompt": {
+            "main": [
+                [
+                    {
+                        "node": "groq-generate",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "groq-generate": {
+            "main": [
+                [
+                    {
+                        "node": "Parse AI Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse AI Response": {
+            "main": [
+                [
+                    {
+                        "node": "Save Test to Database",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Save Test to Database": {
+            "main": [
+                [
+                    {
+                        "node": "Log Result",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1",
+        "timezone": "Asia/Kolkata"
+    },
+    "staticData": null,
+    "tags": [
+        {
+            "name": "weekly-test"
+        },
+        {
+            "name": "automation"
+        }
+    ],
+    "triggerCount": 1,
+    "pinData": {}
+}

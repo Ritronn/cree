@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prototype Demo | WeeklyTest.AI</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        .demo-step {
+            margin-bottom: 2rem;
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+
+        .demo-step.active {
+            opacity: 1;
+        }
+
+        .data-preview {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem;
+            border-radius: 12px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 1rem;
+            border: 1px solid var(--border);
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background: var(--text-gray);
+        }
+
+        .status-active {
+            background: var(--primary);
+            box-shadow: 0 0 10px var(--primary);
+        }
+
+        .status-success {
+            background: var(--success);
+        }
+
+        .status-error {
+            background: var(--danger);
+        }
+
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            border-radius: 50%;
+            margin-right: 1rem;
+            font-weight: 700;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <nav>
+        <div class="nav-content">
+            <div class="logo">
+                <span class="logo-icon">🚀</span>
+                <span class="logo-text">Prototype<span>.Demo</span></span>
+            </div>
+            <a href="index.html" class="btn-secondary" style="margin-top:0; padding: 0.5rem 1rem;">Back to App</a>
+        </div>
+    </nav>
+
+    <main>
+        <div class="container">
+            <h1 class="gradient-text">Weekly Test Prototype</h1>
+            <p>Use this dashboard to manually trigger and verify the AI test generation process <b>right now</b> instead
+                of waiting for Sunday.</p>
+
+            <!-- Step 1: Select User & Extract Data -->
+            <div class="demo-step active glass" id="step-1">
+                <h3><span class="step-number">1</span>Extract User Session Data</h3>
+                <p>Select a user to see the weekly study data that will be fed to the AI.</p>
+
+                <div class="user-selector" style="margin: 1.5rem 0;">
+                    <select id="demo-user-select" style="width: 100%; padding: 1rem;">
+                        <option value="">Loading users...</option>
+                    </select>
+                </div>
+
+                <div id="session-preview" class="data-preview hidden">
+                    <!-- JSON data will appear here -->
+                </div>
+            </div>
+
+            <!-- Step 2: Trigger n8n Webhook -->
+            <div class="demo-step glass" id="step-2">
+                <h3><span class="step-number">2</span>Trigger AI Generation (n8n)</h3>
+                <p>Send a signal to the n8n workflow to generate the test using Groq AI.</p>
+
+                <div style="margin-top: 1.5rem;">
+                    <button id="trigger-n8n-btn" class="btn-primary" disabled>Generate Test Now</button>
+                    <div id="trigger-status" style="margin-top: 1rem; font-size: 0.9rem;">
+                        <span class="status-dot"></span> <span>Ready to trigger</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Verify & Take Test -->
+            <div class="demo-step glass" id="step-3">
+                <h3><span class="step-number">3</span>Final Assessment Result</h3>
+                <p>Verify that the test was saved to the database and is ready for the student.</p>
+
+                <div id="test-result-preview" class="data-preview hidden">
+                    <!-- Test data will appear here -->
+                </div>
+
+                <div style="margin-top: 1.5rem;">
+                    <button id="view-test-btn" class="btn-secondary" disabled>Open Test in App</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="demo.js"></script>
+</body>
+
+</html>

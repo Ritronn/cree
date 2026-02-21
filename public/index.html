@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Test Dashboard | AISSMS Techathon</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <nav>
+        <div class="nav-content">
+            <div class="logo">
+                <span class="logo-icon">📝</span>
+                <span class="logo-text">WeeklyTest<span>.AI</span></span>
+            </div>
+            <div class="user-selector">
+                <label for="user-select">Switch User:</label>
+                <select id="user-select">
+                    <option value="">Loading users...</option>
+                </select>
+            </div>
+        </div>
+    </nav>
+
+    <main id="app">
+        <section id="welcome-screen" class="active">
+            <div class="hero">
+                <h1>Ready for your <span class="gradient-text">Weekly Assessment?</span></h1>
+                <p>We've analyzed your 7 study sessions from this week and prepared a personalized test to reinforce your learning.</p>
+                
+                <div id="no-test-message" class="info-card hidden">
+                    <h3>No Active Test Found</h3>
+                    <p>It looks like your weekly test hasn't been generated yet, or it has expired. Weekly tests are generated every Sunday at 10 AM. If you just imported the n8n workflow, click "Test Workflow" in n8n to generate one now!</p>
+                </div>
+
+                <div id="test-available" class="hidden">
+                    <div class="test-preview-card glass">
+                        <div class="preview-header">
+                            <h2 id="test-title">Weekly Test</h2>
+                            <span id="test-timer" class="timer">--:--:--</span>
+                        </div>
+                        <div class="preview-details">
+                            <div class="detail-item">
+                                <span class="icon">❓</span>
+                                <span id="q-count">15 Questions</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="icon">⏳</span>
+                                <span>6 Hour Validity</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="icon">✨</span>
+                                <span>AI Personalized</span>
+                            </div>
+                        </div>
+                        <button id="start-test-btn" class="btn-primary">Start Assessment</button>
+                    </div>
+                </div>
+
+                <div id="loading" class="loader-container">
+                    <div class="loader"></div>
+                    <p>Fetching your personalized context...</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="test-screen">
+            <div class="container">
+                <div class="test-header glass">
+                    <div class="progress-bar-container">
+                        <div id="progress-bar" class="progress-bar"></div>
+                    </div>
+                    <div class="header-main">
+                        <h2 id="active-test-title">Weekly Test</h2>
+                        <div class="timer-large" id="test-timer-large">00:00:00</div>
+                    </div>
+                </div>
+
+                <div id="questions-container">
+                    <!-- Questions will be injected here -->
+                </div>
+
+                <div class="test-footer">
+                    <button id="submit-test-btn" class="btn-primary btn-large">Submit Assessment</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="result-screen">
+            <div class="container">
+                <div class="result-card glass">
+                    <div id="score-circle" class="score-circle">
+                        <div class="score-value" id="final-score">0%</div>
+                        <svg>
+                            <circle cx="70" cy="70" r="60"></circle>
+                            <circle id="score-progress" cx="70" cy="70" r="60"></circle>
+                        </svg>
+                    </div>
+                    <h1 id="result-message">Well Done!</h1>
+                    <p id="result-detail">You've completed your weekly assessment.</p>
+                    
+                    <div id="result-stats" class="result-stats">
+                        <div class="stat-box">
+                            <span class="stat-label">Correct</span>
+                            <span class="stat-value" id="correct-count">0</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Total</span>
+                            <span class="stat-value" id="total-count">0</span>
+                        </div>
+                    </div>
+
+                    <div id="feedback-container">
+                        <!-- Detailed feedback here -->
+                    </div>
+
+                    <button onclick="location.reload()" class="btn-secondary">Back to Dashboard</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
