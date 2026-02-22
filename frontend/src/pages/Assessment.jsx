@@ -26,24 +26,36 @@ export default function Assessment() {
   const loadAssessment = async () => {
     try {
       setLoading(true);
+      setError(null);
       console.log(`[Assessment] Loading assessment ${assessmentId}...`);
       const response = await api.get(`/assessments/${assessmentId}/`);
-      console.log('[Assessment] Response:', response.data);
+      console.log('[Assessment] Full response:', response);
+      console.log('[Assessment] Response data:', response.data);
+      console.log('[Assessment] Questions:', response.data.questions);
+
+      if (!response.data) {
+        throw new Error('No data received from server');
+      }
 
       setAssessment(response.data);
-      setQuestions(response.data.questions || []);
+      
+      const questionsData = response.data.questions || [];
+      console.log(`[Assessment] Setting ${questionsData.length} questions`);
+      setQuestions(questionsData);
 
-      if (!response.data.questions || response.data.questions.length === 0) {
+      if (questionsData.length === 0) {
         console.error('[Assessment] No questions in response');
         setError('No questions found in this assessment.');
       } else {
-        console.log(`[Assessment] Loaded ${response.data.questions.length} questions`);
-        setError(null);
+        console.log(`[Assessment] Successfully loaded ${questionsData.length} questions`);
+        // Log first question for debugging
+        console.log('[Assessment] First question:', questionsData[0]);
       }
     } catch (err) {
       console.error('[Assessment] Failed to load assessment:', err);
-      console.error('[Assessment] Error response:', err.response?.data);
-      setError(err.response?.data?.detail || 'Failed to load assessment. Please try again.');
+      console.error('[Assessment] Error response:', err.response);
+      const errorMessage = err.response?.data?.detail || err.message || 'Failed to load assessment. Please try again.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -76,12 +88,18 @@ export default function Assessment() {
     );
   }
 
+  // Don't render if still loading or if there's an error
+  if (loading || error) {
+    return null; // Already handled above
+  }
+
   if (!questions || questions.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 text-white flex items-center justify-center">
         <div className="text-center max-w-md">
           <h2 className="text-2xl font-bold mb-4">No Questions Available</h2>
           <p className="text-gray-400 mb-6">This assessment doesn't have any questions yet.</p>
+          <p className="text-sm text-gray-500 mb-6">Assessment ID: {assessmentId}</p>
           <button
             onClick={() => navigate('/dashboard')}
             className="px-6 py-3 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold"
@@ -94,6 +112,8 @@ export default function Assessment() {
   }
 
   const currentQuestion = questions[currentQuestionIndex];
+  console.log('[Assessment] Current question index:', currentQuestionIndex);
+  console.log('[Assessment] Current question:', currentQuestion);
 
   if (!currentQuestion) {
     return (
@@ -298,23 +318,32 @@ export default function Assessment() {
           <h2 className="text-2xl font-bold mb-6">{currentQuestion.question_text}</h2>
 
           <div className="space-y-3 mb-8">
-            {currentQuestion.options && Array.isArray(currentQuestion.options) && currentQuestion.options.map((option, index) => (
-              <button
-                key={index}
-                onClick={() => handleSelectAnswer(index)}
-                className={`w-full p-4 rounded-xl text-left transition-all border ${selectedAnswers[currentQuestionIndex] === index
-                    ? 'bg-pink-500/20 border-pink-500'
-                    : 'bg-white/5 border-white/10 hover:border-pink-500/50'
-                  }`}
-              >
-                <span className="font-semibold mr-3">{String.fromCharCode(65 + index)}.</span>
-                {option}
-              </button>
-            ))}
-            {(!currentQuestion.options || !Array.isArray(currentQuestion.options) || currentQuestion.options.length === 0) && (
+            {currentQuestion.options && Array.isArray(currentQuestion.options) && currentQuestion.options.length > 0 ? (
+              currentQuestion.options.map((option, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleSelectAnswer(index)}
+                  className={`w-full p-4 rounded-xl text-left transition-all border ${selectedAnswers[currentQuestionIndex] === index
+                      ? 'bg-pink-500/20 border-pink-500'
+                      : 'bg-white/5 border-white/10 hover:border-pink-500/50'
+                    }`}
+                >
+                  <span className="font-semibold mr-3">{String.fromCharCode(65 + index)}.</span>
+                  {option}
+                </button>
+              ))
+            ) : (
               <div className="text-center py-8 text-red-400">
                 <p>Error: Question options are not properly formatted</p>
-                <p className="text-sm text-gray-400 mt-2">Options: {JSON.stringify(currentQuestion.options)}</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  Options type: {typeof currentQuestion.options}
+                </p>
+                <p className="text-sm text-gray-400">
+                  Options value: {JSON.stringify(currentQuestion.options)}
+                </p>
+                <p className="text-sm text-gray-400 mt-2">
+                  Question: {JSON.stringify(currentQuestion)}
+                </p>
               </div>
             )}
           </div>
