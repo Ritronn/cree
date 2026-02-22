@@ -1,25 +1,38 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Upload, Link as LinkIcon, FileText, Video, X, Plus, Zap, Send, ChevronLeft, ChevronRight, Loader2, AlertCircle, Download, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Upload, Link as LinkIcon, FileText, Video, X, Plus, Zap, Send, ChevronLeft, ChevronRight, Loader2, AlertCircle, Download, ExternalLink, Clock, Coffee, CheckCircle, Play, Pause } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import { studySessionAPI, contentAPI } from '../services/api';
 
 // Import PDF viewer with correct CSS paths
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// Set up PDF.js worker
+// Set up PDF.js worker with a reliable CDN
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 export default function TopicWindow() {
+  const navigate = useNavigate();
+  const { topicId, sessionId } = useParams();
+
+  // Session state
+  const [session, setSession] = useState(null);
+  const [isOnBreak, setIsOnBreak] = useState(false);
+  const [breakTimeLeft, setBreakTimeLeft] = useState(0);
+  const [sessionTime, setSessionTime] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+
+  // Timers
+  const sessionTimer = useRef(null);
+  const breakTimer = useRef(null);
+
+  // Refs
   const whiteboardRef = useRef(null);
   const whiteboardInstance = useRef(null);
   const fileInputRef = useRef(null);
-  const navigate = useNavigate();
-  const { topicId } = useParams();
-  
-  
+
   const [showAddContent, setShowAddContent] = useState(false);
   const [contentType, setContentType] = useState(null);
   const [youtubeUrl, setYoutubeUrl] = useState('');
@@ -29,11 +42,16 @@ export default function TopicWindow() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [docError, setDocError] = useState(null);
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
-  const [pptViewer, setPptViewer] = useState('google'); // 'google' or 'microsoft'
-  
+
+  // MCQ state
+  const [generatedQuestions, setGeneratedQuestions] = useState([]);
+  const [processingContent, setProcessingContent] = useState(false);
+  const [contentIdForMCQ, setContentIdForMCQ] = useState(null);
+
   // Resizable panel states
   const [leftWidth, setLeftWidth] = useState(256);
   const [rightWidth, setRightWidth] = useState(384);
@@ -48,13 +66,122 @@ export default function TopicWindow() {
       try {
         whiteboardInstance.current = new window.api.WhiteboardTeam(whiteboardRef.current, {
           clientId: 'b6289bc542b7a2e592bb5f232c94114e',
-          boardCode: `velocity-${topicId}-${Date.now()}`
+          boardCode: `velocity-${topicId || sessionId}-${Date.now()}`
         });
       } catch (error) {
         console.error('Whiteboard initialization error:', error);
       }
     }
-  }, [topicId]);
+  }, [topicId, sessionId]);
+
+  // Load session if sessionId is provided
+  useEffect(() => {
+    if (sessionId) {
+      loadSession();
+    }
+    return () => {
+      if (sessionTimer.current) clearInterval(sessionTimer.current);
+      if (breakTimer.current) clearInterval(breakTimer.current);
+    };
+  }, [sessionId]);
+
+  // Session timer
+  useEffect(() => {
+    if (session && !isOnBreak && !isPaused) {
+      sessionTimer.current = setInterval(() => {
+        setSessionTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (sessionTimer.current) clearInterval(sessionTimer.current);
+    }
+
+    return () => {
+      if (sessionTimer.current) clearInterval(sessionTimer.current);
+    };
+  }, [session, isOnBreak, isPaused]);
+
+  // Break timer
+  useEffect(() => {
+    if (isOnBreak && breakTimeLeft > 0) {
+      breakTimer.current = setInterval(() => {
+        setBreakTimeLeft(prev => {
+          if (prev <= 1) {
+            handleEndBreak();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (breakTimer.current) clearInterval(breakTimer.current);
+    }
+
+    return () => {
+      if (breakTimer.current) clearInterval(breakTimer.current);
+    };
+  }, [isOnBreak, breakTimeLeft]);
+
+  const loadSession = async () => {
+    try {
+      const response = await studySessionAPI.get(sessionId);
+      setSession(response.data);
+    } catch (err) {
+      console.error('Failed to load session:', err);
+    }
+  };
+
+  const formatTime = (seconds) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hrs > 0) {
+      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleTogglePause = () => {
+    setIsPaused(!isPaused);
+  };
+
+  const handleStartBreak = async () => {
+    if (!sessionId) return;
+    try {
+      const response = await studySessionAPI.startBreak(sessionId);
+      setIsOnBreak(true);
+      setBreakTimeLeft(response.data.break_duration_seconds || 300);
+    } catch (err) {
+      console.error('Failed to start break:', err);
+    }
+  };
+
+  const handleEndBreak = async () => {
+    if (!sessionId) return;
+    try {
+      await studySessionAPI.endBreak(sessionId);
+      setIsOnBreak(false);
+      setBreakTimeLeft(0);
+    } catch (err) {
+      console.error('Failed to end break:', err);
+    }
+  };
+
+  const [completing, setCompleting] = useState(false);
+
+  const handleCompleteSession = async () => {
+    if (!sessionId || completing) return;
+    setCompleting(true);
+    try {
+      await studySessionAPI.complete(sessionId);
+    } catch (err) {
+      console.error('Failed to complete session:', err);
+      // Still navigate to dashboard even if already completed
+    }
+    navigate('/dashboard', {
+      state: { message: 'Session complete! Your test will be ready shortly.' }
+    });
+  };
 
   // Handle resizing
   useEffect(() => {
@@ -109,27 +236,82 @@ export default function TopicWindow() {
     };
   }, [contents]);
 
-  const handleAddYouTube = () => {
+  const handleAddYouTube = async () => {
     if (youtubeUrl.trim()) {
       const embedUrl = convertToEmbedUrl(youtubeUrl);
+      const tempId = Date.now();
+
+      // Step 1: Immediately show video (close modal, display video)
       const newContent = {
-        id: Date.now(),
+        id: tempId,
         type: 'youtube',
         url: embedUrl,
-        title: 'YouTube Video'
+        title: 'YouTube Video',
+        loading: true
       };
+
       setContents([...contents, newContent]);
       setCurrentContent(newContent);
       setCurrentVideo(embedUrl);
       setYoutubeUrl('');
       setShowAddContent(false);
       setContentType(null);
+
+      // Step 2: Process in background (upload and get transcript only, NO MCQ generation)
+      setProcessingContent(true);
+
+      // Background processing
+      (async () => {
+        try {
+          // Upload content and fetch transcript
+          const uploadResponse = await contentAPI.upload({
+            title: 'YouTube Video',
+            content_type: 'youtube',
+            url: youtubeUrl
+          });
+
+          const contentId = uploadResponse.data.id;
+          setContentIdForMCQ(contentId);
+
+          // Update session with this content
+          if (sessionId) {
+            await studySessionAPI.updateContent(sessionId, contentId);
+            console.log(`✅ Session ${sessionId} updated with content ${contentId}`);
+          }
+
+          // Update content with backend ID
+          setContents(prevContents =>
+            prevContents.map(c =>
+              c.id === tempId
+                ? { ...c, backendId: contentId, loading: false, title: uploadResponse.data.title || 'YouTube Video' }
+                : c
+            )
+          );
+
+          // Silent success - content uploaded and ready
+          console.log(`✅ Content uploaded successfully (ID: ${contentId})`);
+
+        } catch (error) {
+          console.error('Background processing failed:', error);
+
+          // Update content to show processing failed
+          setContents(prevContents =>
+            prevContents.map(c =>
+              c.id === tempId
+                ? { ...c, loading: false, error: true }
+                : c
+            )
+          );
+        } finally {
+          setProcessingContent(false);
+        }
+      })();
     }
   };
 
   const convertToEmbedUrl = (url) => {
     let videoId = '';
-    
+
     if (url.includes('youtube.com/watch?v=')) {
       videoId = url.split('v=')[1]?.split('&')[0];
     } else if (url.includes('youtu.be/')) {
@@ -137,7 +319,7 @@ export default function TopicWindow() {
     } else if (url.includes('youtube.com/embed/')) {
       return url;
     }
-    
+
     return videoId ? `https://www.youtube.com/embed/${videoId}?rel=0` : url;
   };
 
@@ -146,10 +328,13 @@ export default function TopicWindow() {
     if (file) {
       setLoading(true);
       setDocError(null);
-      
+
       try {
+        // Small delay to show loading state
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         const fileUrl = URL.createObjectURL(file);
-        
+
         const newContent = {
           id: Date.now(),
           type: contentType,
@@ -158,7 +343,7 @@ export default function TopicWindow() {
           title: file.name,
           fileType: file.type
         };
-        
+
         setContents([...contents, newContent]);
         setCurrentContent(newContent);
         setCurrentVideo(null);
@@ -177,6 +362,7 @@ export default function TopicWindow() {
     setCurrentContent(content);
     setDocError(null);
     setPageNumber(1);
+    setPdfLoading(content.type === 'pdf');
     if (content.type === 'youtube') {
       setCurrentVideo(content.url);
     } else {
@@ -189,10 +375,10 @@ export default function TopicWindow() {
       setChatMessages([...chatMessages, { id: Date.now(), text: chatInput, sender: 'user' }]);
       setChatInput('');
       setTimeout(() => {
-        setChatMessages(prev => [...prev, { 
-          id: Date.now(), 
-          text: 'This is a simulated AI response. Integration with AI coming soon!', 
-          sender: 'ai' 
+        setChatMessages(prev => [...prev, {
+          id: Date.now(),
+          text: 'This is a simulated AI response. Integration with AI coming soon!',
+          sender: 'ai'
         }]);
       }, 1000);
     }
@@ -200,18 +386,20 @@ export default function TopicWindow() {
 
   function onDocumentLoadSuccess({ numPages }) {
     setNumPages(numPages);
+    setPdfLoading(false);
     setDocError(null);
   }
 
   function onDocumentLoadError(error) {
     console.error('PDF load error:', error);
-    setDocError('Failed to load PDF. Please try again.');
+    setPdfLoading(false);
+    setDocError('Failed to load PDF. The file might be corrupted or password protected.');
   }
 
   // Render PDF using react-pdf
   const renderPDF = () => {
     if (!currentContent?.url) return null;
-    
+
     return (
       <div className="h-full flex flex-col">
         <div className="bg-gray-800 p-2 flex items-center justify-between">
@@ -219,17 +407,17 @@ export default function TopicWindow() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPageNumber(Math.max(1, pageNumber - 1))}
-              disabled={pageNumber <= 1}
+              disabled={pageNumber <= 1 || pdfLoading}
               className="p-1 rounded bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="text-xs text-white">
-              Page {pageNumber} of {numPages || '?'}
+              {pdfLoading ? 'Loading...' : `Page ${pageNumber} of ${numPages || '?'}`}
             </span>
             <button
               onClick={() => setPageNumber(Math.min(numPages || 1, pageNumber + 1))}
-              disabled={pageNumber >= (numPages || 1)}
+              disabled={pageNumber >= (numPages || 1) || pdfLoading}
               className="p-1 rounded bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronRight className="w-4 h-4" />
@@ -237,54 +425,73 @@ export default function TopicWindow() {
           </div>
         </div>
         <div className="flex-1 overflow-auto p-4 bg-gray-900">
-          <Document
-            file={currentContent.url}
-            onLoadSuccess={onDocumentLoadSuccess}
-            onLoadError={onDocumentLoadError}
-            loading={
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-8 h-8 text-pink-500 animate-spin" />
+          {pdfLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <Loader2 className="w-12 h-12 text-pink-500 animate-spin mx-auto mb-4" />
+                <p className="text-gray-400">Loading PDF...</p>
               </div>
-            }
-          >
-            <Page 
-              pageNumber={pageNumber} 
-              renderTextLayer={true}
-              renderAnnotationLayer={true}
-              className="mx-auto"
-              width={Math.min(800, window.innerWidth * 0.5)}
-            />
-          </Document>
+            </div>
+          ) : docError ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center p-8 max-w-md">
+                <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-white mb-2">Failed to Load PDF</h3>
+                <p className="text-gray-400 mb-6">{docError}</p>
+                <a
+                  href={currentContent.url}
+                  download={currentContent.title}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold hover:shadow-lg transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  Download Instead
+                </a>
+              </div>
+            </div>
+          ) : (
+            <Document
+              file={currentContent.url}
+              onLoadSuccess={onDocumentLoadSuccess}
+              onLoadError={onDocumentLoadError}
+              loading={null} // We handle loading state ourselves
+            >
+              <Page
+                pageNumber={pageNumber}
+                renderTextLayer={true}
+                renderAnnotationLayer={true}
+                className="mx-auto"
+                width={Math.min(800, window.innerWidth * 0.5)}
+                loading={
+                  <div className="flex items-center justify-center p-8">
+                    <Loader2 className="w-8 h-8 text-pink-500 animate-spin" />
+                  </div>
+                }
+              />
+            </Document>
+          )}
         </div>
       </div>
     );
   };
 
-  // Render PPT using Google Docs Viewer
-  const renderPPT = () => {
+  // Render unsupported file types
+  const renderUnsupportedFile = (type) => {
     if (!currentContent?.url) return null;
-    
-    // For blob URLs, we need to create a temporary URL for the viewer
-    // Since Google Viewer needs a publicly accessible URL, we'll use a proxy or convert to data URL
-    // For now, let's create a download link with preview options
-    
-    const pptViewerUrl = pptViewer === 'google' 
-      ? `https://docs.google.com/viewer?url=${encodeURIComponent(currentContent.url)}&embedded=true`
-      : `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(currentContent.url)}`;
 
     return (
       <div className="h-full flex flex-col">
         <div className="bg-gray-800 p-2 flex items-center justify-between">
           <span className="text-white text-sm truncate">{currentContent.title}</span>
           <div className="flex items-center gap-2">
-            <select
-              value={pptViewer}
-              onChange={(e) => setPptViewer(e.target.value)}
-              className="bg-gray-700 text-white text-xs rounded px-2 py-1 border border-gray-600"
+            <a
+              href={currentContent.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1 rounded bg-white/10 hover:bg-white/20"
+              title="Open in new tab"
             >
-              <option value="google">Google Viewer</option>
-              <option value="microsoft">Microsoft Viewer</option>
-            </select>
+              <ExternalLink className="w-4 h-4" />
+            </a>
             <a
               href={currentContent.url}
               download={currentContent.title}
@@ -295,44 +502,37 @@ export default function TopicWindow() {
             </a>
           </div>
         </div>
-        <div className="flex-1 bg-gray-900">
-          <iframe
-            src={pptViewerUrl}
-            className="w-full h-full"
-            title={currentContent.title}
-            sandbox="allow-scripts allow-same-origin allow-forms"
-          />
-        </div>
-      </div>
-    );
-  };
-
-  // Render Word using Microsoft Viewer
-  const renderWord = () => {
-    if (!currentContent?.url) return null;
-    
-    const wordViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(currentContent.url)}`;
-
-    return (
-      <div className="h-full flex flex-col">
-        <div className="bg-gray-800 p-2 flex items-center justify-between">
-          <span className="text-white text-sm truncate">{currentContent.title}</span>
-          <a
-            href={currentContent.url}
-            download={currentContent.title}
-            className="p-1 rounded bg-white/10 hover:bg-white/20"
-            title="Download"
-          >
-            <Download className="w-4 h-4" />
-          </a>
-        </div>
-        <div className="flex-1 bg-gray-900">
-          <iframe
-            src={wordViewerUrl}
-            className="w-full h-full"
-            title={currentContent.title}
-            sandbox="allow-scripts allow-same-origin allow-forms"
-          />
+        <div className="flex-1 bg-gray-900 flex items-center justify-center">
+          <div className="text-center p-8 max-w-md">
+            <AlertCircle className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-white mb-2">
+              {type === 'ppt' ? 'PowerPoint Preview' : 'Word Document Preview'}
+            </h3>
+            <p className="text-gray-400 mb-6">
+              {type === 'ppt'
+                ? 'PowerPoint files cannot be previewed directly in the browser.'
+                : 'Word documents cannot be previewed directly in the browser.'}
+            </p>
+            <div className="flex gap-3 justify-center">
+              <a
+                href={currentContent.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold hover:shadow-lg transition-all"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open in Tab
+              </a>
+              <a
+                href={currentContent.url}
+                download={currentContent.title}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-lg font-semibold hover:bg-white/20 transition-all"
+              >
+                <Download className="w-4 h-4" />
+                Download
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -352,29 +552,80 @@ export default function TopicWindow() {
             </button>
             <Zap className="w-8 h-8 text-pink-500" fill="#E945F5" />
             <span className="text-xl font-bold">Velocity</span>
+
+            {/* Timer Display (only show if session exists) */}
+            {sessionId && (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/10">
+                <Clock className="w-4 h-4" />
+                <span className="text-sm font-mono">{formatTime(sessionTime)}</span>
+              </div>
+            )}
           </div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setShowAddContent(true)}
-            className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold"
-          >
-            <Plus className="w-5 h-5" />
-            Add Content
-          </motion.button>
+
+          <div className="flex items-center gap-3">
+            {/* Timer Controls (only show if session exists) */}
+            {sessionId && (
+              <>
+                {/* Pause/Play Button */}
+                <button
+                  onClick={handleTogglePause}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  title={isPaused ? 'Resume' : 'Pause'}
+                >
+                  {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
+                </button>
+
+                {/* Break Button */}
+                {!isOnBreak ? (
+                  <button
+                    onClick={handleStartBreak}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
+                  >
+                    <Coffee className="w-5 h-5" />
+                    <span>Break</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-orange-500/20 rounded-lg">
+                    <Coffee className="w-5 h-5 text-orange-400" />
+                    <span className="text-orange-400">{formatTime(breakTimeLeft)}</span>
+                  </div>
+                )}
+
+                {/* Complete Button */}
+                <button
+                  onClick={handleCompleteSession}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg hover:shadow-lg transition-all"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  <span>Complete</span>
+                </button>
+              </>
+            )}
+
+            {/* Add Content Button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowAddContent(true)}
+              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold"
+            >
+              <Plus className="w-5 h-5" />
+              Add Content
+            </motion.button>
+          </div>
         </div>
       </header>
 
       {/* Main Layout */}
       <div className="flex h-[calc(100vh-73px)]">
         {/* Left Sidebar - Content List */}
-        <div 
+        <div
           className="border-r border-white/10 bg-black/20 backdrop-blur-sm overflow-y-auto"
           style={{ width: `${leftWidth}px` }}
         >
           <div className="p-4">
             <h3 className="text-sm font-semibold text-gray-400 mb-3">CONTENT</h3>
-            
+
             {contents.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-sm text-gray-500">No content yet</p>
@@ -390,11 +641,10 @@ export default function TopicWindow() {
                         key={content.id}
                         whileHover={{ x: 4 }}
                         onClick={() => handleContentClick(content)}
-                        className={`w-full p-3 rounded-lg border transition-all text-left ${
-                          currentContent?.id === content.id
+                        className={`w-full p-3 rounded-lg border transition-all text-left ${currentContent?.id === content.id
                             ? 'bg-pink-500/20 border-pink-500/50'
                             : 'bg-white/5 border-white/10 hover:border-pink-500/30'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-2">
                           <Video className="w-4 h-4 text-red-400 flex-shrink-0" />
@@ -414,11 +664,10 @@ export default function TopicWindow() {
                         key={content.id}
                         whileHover={{ x: 4 }}
                         onClick={() => handleContentClick(content)}
-                        className={`w-full p-3 rounded-lg border transition-all text-left ${
-                          currentContent?.id === content.id
+                        className={`w-full p-3 rounded-lg border transition-all text-left ${currentContent?.id === content.id
                             ? 'bg-pink-500/20 border-pink-500/50'
                             : 'bg-white/5 border-white/10 hover:border-pink-500/30'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-blue-400 flex-shrink-0" />
@@ -438,11 +687,10 @@ export default function TopicWindow() {
                         key={content.id}
                         whileHover={{ x: 4 }}
                         onClick={() => handleContentClick(content)}
-                        className={`w-full p-3 rounded-lg border transition-all text-left ${
-                          currentContent?.id === content.id
+                        className={`w-full p-3 rounded-lg border transition-all text-left ${currentContent?.id === content.id
                             ? 'bg-pink-500/20 border-pink-500/50'
                             : 'bg-white/5 border-white/10 hover:border-pink-500/30'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
@@ -462,11 +710,10 @@ export default function TopicWindow() {
                         key={content.id}
                         whileHover={{ x: 4 }}
                         onClick={() => handleContentClick(content)}
-                        className={`w-full p-3 rounded-lg border transition-all text-left ${
-                          currentContent?.id === content.id
+                        className={`w-full p-3 rounded-lg border transition-all text-left ${currentContent?.id === content.id
                             ? 'bg-pink-500/20 border-pink-500/50'
                             : 'bg-white/5 border-white/10 hover:border-pink-500/30'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-2">
                           <Upload className="w-4 h-4 text-orange-400 flex-shrink-0" />
@@ -499,31 +746,39 @@ export default function TopicWindow() {
                   {currentContent.type === 'youtube' && (
                     <div className="mb-6">
                       <div className="ratio ratio-16x9">
-                        <iframe 
+                        <iframe
                           src={currentContent.url}
-                          title="YouTube video" 
+                          title="YouTube video"
                           allowFullScreen
                           className="rounded-xl"
                         />
                       </div>
                     </div>
                   )}
-                  
+
                   {currentContent.type === 'pdf' && (
-                    <div className="bg-white/5 rounded-xl overflow-hidden mb-6" style={{ height: '70vh' }}>
-                      {renderPDF()}
+                    <div className="bg-white rounded-xl overflow-hidden mb-6" style={{ height: '80vh' }}>
+                      <div className="bg-gray-800 p-4 flex items-center justify-between">
+                        <span className="text-white text-sm">{currentContent.title}</span>
+                      </div>
+                      <iframe
+                        src={currentContent.url}
+                        className="w-full"
+                        style={{ height: 'calc(100% - 60px)' }}
+                        title={currentContent.title}
+                      />
                     </div>
                   )}
 
                   {currentContent.type === 'ppt' && (
                     <div className="bg-white/5 rounded-xl overflow-hidden mb-6" style={{ height: '70vh' }}>
-                      {renderPPT()}
+                      {renderUnsupportedFile('ppt')}
                     </div>
                   )}
 
                   {currentContent.type === 'word' && (
                     <div className="bg-white/5 rounded-xl overflow-hidden mb-6" style={{ height: '70vh' }}>
-                      {renderWord()}
+                      {renderUnsupportedFile('word')}
                     </div>
                   )}
                 </>
@@ -541,16 +796,6 @@ export default function TopicWindow() {
                   </div>
                 </div>
               )}
-
-              {currentContent && (
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full py-3 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold hover:shadow-lg hover:shadow-pink-500/50 transition-all"
-                >
-                  Take Assessment
-                </motion.button>
-              )}
             </div>
           </div>
 
@@ -563,19 +808,19 @@ export default function TopicWindow() {
           </div>
 
           {/* Right: Whiteboard & Chat */}
-          <div 
+          <div
             className="border-l border-white/10 flex flex-col whiteboard-chat-container"
             style={{ width: `${rightWidth}px` }}
           >
             {/* Whiteboard */}
-            <div 
+            <div
               className="border-b border-white/10 flex flex-col"
               style={{ height: `${whiteboardHeight}%` }}
             >
               <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20">
                 <h3 className="font-semibold">Whiteboard</h3>
               </div>
-              <div 
+              <div
                 ref={whiteboardRef}
                 id="wt-container"
                 style={{ width: '100%', height: 'calc(100% - 57px)' }}
@@ -592,7 +837,7 @@ export default function TopicWindow() {
             </div>
 
             {/* Chat Interface */}
-            <div 
+            <div
               className="flex flex-col bg-black/20"
               style={{ height: `${100 - whiteboardHeight}%` }}
             >
@@ -611,11 +856,10 @@ export default function TopicWindow() {
                       className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[80%] px-4 py-2 rounded-lg ${
-                          msg.sender === 'user'
+                        className={`max-w-[80%] px-4 py-2 rounded-lg ${msg.sender === 'user'
                             ? 'bg-gradient-to-r from-pink-500 to-blue-500'
                             : 'bg-white/10'
-                        }`}
+                          }`}
                       >
                         <p className="text-sm">{msg.text}</p>
                       </div>
@@ -733,7 +977,7 @@ export default function TopicWindow() {
                     <button onClick={() => setContentType(null)} className="text-sm text-gray-400 hover:text-white">
                       ← Back
                     </button>
-                    
+
                     <div>
                       <label className="block text-sm font-medium mb-2">YouTube URL</label>
                       <div className="relative">
@@ -742,15 +986,20 @@ export default function TopicWindow() {
                           type="text"
                           value={youtubeUrl}
                           onChange={(e) => setYoutubeUrl(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && youtubeUrl.trim() && handleAddYouTube()}
                           placeholder="https://youtube.com/watch?v=..."
                           className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:border-pink-500/50 focus:outline-none"
                         />
                       </div>
+                      <p className="text-xs text-gray-400 mt-2">
+                        Questions will be generated in the background
+                      </p>
                     </div>
 
-                    <button 
+                    <button
                       onClick={handleAddYouTube}
-                      className="w-full py-3 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold"
+                      disabled={!youtubeUrl.trim()}
+                      className="w-full py-3 bg-gradient-to-r from-pink-500 to-blue-500 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Confirm
                     </button>
@@ -760,20 +1009,20 @@ export default function TopicWindow() {
                     <button onClick={() => setContentType(null)} className="text-sm text-gray-400 hover:text-white">
                       ← Back
                     </button>
-                    
+
                     <input
                       ref={fileInputRef}
                       type="file"
                       accept={
-                        contentType === 'pdf' ? '.pdf' : 
-                        contentType === 'ppt' ? '.ppt,.pptx' : 
-                        '.doc,.docx'
+                        contentType === 'pdf' ? '.pdf' :
+                          contentType === 'ppt' ? '.ppt,.pptx' :
+                            '.doc,.docx'
                       }
                       onChange={handleFileUpload}
                       className="hidden"
                     />
-                    
-                    <div 
+
+                    <div
                       onClick={() => fileInputRef.current?.click()}
                       className="border-2 border-dashed border-white/20 rounded-xl p-12 text-center hover:border-pink-500/50 cursor-pointer transition-all"
                     >
@@ -787,15 +1036,15 @@ export default function TopicWindow() {
                           <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                           <p className="text-gray-400">
                             Click to select {
-                              contentType === 'pdf' ? 'PDF' : 
-                              contentType === 'ppt' ? 'PowerPoint' : 
-                              'Word'
+                              contentType === 'pdf' ? 'PDF' :
+                                contentType === 'ppt' ? 'PowerPoint' :
+                                  'Word'
                             } file
                           </p>
                           <p className="text-sm text-gray-500 mt-2">
-                            {contentType === 'pdf' ? 'Supported: .pdf' : 
-                             contentType === 'ppt' ? 'Supported: .ppt, .pptx' : 
-                             'Supported: .doc, .docx'}
+                            {contentType === 'pdf' ? 'Supported: .pdf' :
+                              contentType === 'ppt' ? 'Supported: .ppt, .pptx' :
+                                'Supported: .doc, .docx'}
                           </p>
                         </>
                       )}

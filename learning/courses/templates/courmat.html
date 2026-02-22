@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block banner %}
+<h1 class="text-white">
+            {{ course.name }}
+          </h1>
+          <p class="mx-auto text-white  mt-20 mb-40">
+            By {{ course.author.username }}
+          </p>
+
+{% endblock %}
+
+{% block content %}
+
+<section class="course-details-area section-gap">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 course-details-left">
+                    <div class="main-image">
+                        <img class="img-fluid" src="{{ course.img.url }}" alt="">
+                    </div>
+                    <div class="content-wrapper">
+                        <h4 class="title">Subject</h4>
+                        <div class="content">
+                            {{ course.subject }}
+                            <br>
+                            <br>
+                        </div>
+
+                        <h4 class="title">Description</h4>
+                        <div class="content">
+                            {{ course.desc }}
+                        </div>
+
+                        <h4 class="title">Course Material</h4>
+                        <div class="content">
+                            <ul class="course-list">
+                                {% for mat in material %}
+                                <li class="justify-content-between d-flex">
+                                    <p>{{ mat.desc }}</p>
+                                    <a class="btn text-uppercase" href="{{ mat.file.url }}">View</a>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        <h4 class="title">Assignment</h4>
+                        <div class="content">
+                            <ul class="course-list">
+                                {% for mat in assign %}
+                                <li class="justify-content-between d-flex">
+                                    <p>{{ mat.title }}</p>
+                                    <a class="btn text-uppercase" href="{% url 'courses:assignment' mat.id %}">View</a>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+
+                        </div>
+                        <h4 class="title">Test and Quizzes</h4>
+                        <div class="content">
+                            <ul class="course-list">
+                                {% for te in tests %}
+                                <li class="justify-content-between d-flex">
+                                    <p>{{ te.title }}</p>
+                                    <a class="btn text-uppercase" href="{% url 'quizzes:takequiz' te.id %}">Start</a>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+{% endblock %}

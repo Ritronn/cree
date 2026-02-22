@@ -1,0 +1,42 @@
+YouTube IP Block Fix - Cookie Setup
+====================================
+
+If you're getting "IP blocked" errors, YouTube is temporarily blocking automated requests.
+
+QUICK FIX:
+1. Wait 10-15 minutes
+2. Try a different video
+3. Use cookies (instructions below)
+
+HOW TO ADD COOKIES (Bypasses IP blocks):
+=========================================
+
+Option 1: Browser Extension (Easiest)
+--------------------------------------
+1. Install "Get cookies.txt LOCALLY" extension for Chrome/Firefox
+2. Go to youtube.com and make sure you're logged in
+3. Click the extension icon
+4. Click "Export" 
+5. Save as: learning/adaptive_learning/youtube_cookies.txt
+6. Restart Django server
+
+Option 2: Manual (Advanced)
+----------------------------
+1. Open YouTube in browser (logged in)
+2. Open DevTools (F12)
+3. Go to Application > Cookies > youtube.com
+4. Copy all cookies to a file named youtube_cookies.txt in Netscape format
+5. Place in: learning/adaptive_learning/youtube_cookies.txt
+
+The code will automatically use cookies if the file exists!
+
+WHY THIS HAPPENS:
+=================
+- Too many requests in short time
+- YouTube rate limits automated tools
+- Cookies make it look like a real browser
+- Block usually clears in 10-15 minutes
+
+CURRENT STATUS:
+===============
+Your IP is temporarily blocked. Wait 15 minutes or add cookies.

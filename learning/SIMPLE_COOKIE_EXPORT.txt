@@ -1,0 +1,54 @@
+SIMPLE METHOD: Export YouTube Cookies via DevTools
+===================================================
+
+STEP 1: Open YouTube
+--------------------
+Go to: https://www.youtube.com
+Make sure you're logged in
+
+STEP 2: Open DevTools
+----------------------
+Press F12 (or Right-click > Inspect)
+
+STEP 3: Go to Console Tab
+--------------------------
+Click "Console" tab at the top
+
+STEP 4: Paste This Code
+------------------------
+Copy and paste this entire code into the console and press Enter:
+
+```javascript
+(function() {
+    const cookies = document.cookie.split(';');
+    let output = '# Netscape HTTP Cookie File\n';
+    cookies.forEach(cookie => {
+        const [name, value] = cookie.trim().split('=');
+        output += `.youtube.com\tTRUE\t/\tFALSE\t0\t${name}\t${value}\n`;
+    });
+    const blob = new Blob([output], {type: 'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'youtube_cookies.txt';
+    a.click();
+})();
+```
+
+STEP 5: Download
+-----------------
+The file "youtube_cookies.txt" will download automatically
+
+STEP 6: Move File
+-----------------
+Move the downloaded file to:
+learning/adaptive_learning/youtube_cookies.txt
+
+STEP 7: Test
+------------
+cd learning
+python test_with_proxy.py
+
+You should see: "[Transcript] Using cookies from ..."
+
+DONE!

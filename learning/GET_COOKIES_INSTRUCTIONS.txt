@@ -1,0 +1,61 @@
+HOW TO GET YOUTUBE COOKIES (Bypass IP Block)
+=============================================
+
+METHOD 1: Browser Extension (EASIEST)
+--------------------------------------
+1. Install "Get cookies.txt LOCALLY" extension:
+   - Chrome: https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc
+   - Firefox: https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/
+
+2. Go to https://www.youtube.com
+   - Make sure you're logged in to your YouTube account
+
+3. Click the extension icon in your browser toolbar
+
+4. Click "Export" or "Download"
+
+5. Save the file as: youtube_cookies.txt
+
+6. Move the file to: learning/adaptive_learning/youtube_cookies.txt
+
+7. Test: python test_with_proxy.py
+
+
+METHOD 2: Manual Export (Advanced)
+-----------------------------------
+1. Open YouTube in browser (logged in)
+2. Open DevTools (F12)
+3. Go to: Application > Storage > Cookies > https://www.youtube.com
+4. Right-click on cookies list > Copy all
+5. Create file: learning/adaptive_learning/youtube_cookies.txt
+6. Format as Netscape cookies format (see example below)
+
+
+EXAMPLE COOKIE FILE FORMAT:
+---------------------------
+# Netscape HTTP Cookie File
+.youtube.com	TRUE	/	TRUE	0	CONSENT	YES+1
+.youtube.com	TRUE	/	FALSE	1234567890	VISITOR_INFO1_LIVE	abcdefg
+
+
+VERIFY IT WORKS:
+----------------
+cd learning
+python test_with_proxy.py
+
+You should see: "[Transcript] Using cookies from ..."
+
+
+TROUBLESHOOTING:
+----------------
+- Make sure you're logged into YouTube
+- Cookie file must be in Netscape format
+- File must be named exactly: youtube_cookies.txt
+- Place in: learning/adaptive_learning/youtube_cookies.txt
+- Cookies expire - re-export if it stops working
+
+
+WHY THIS WORKS:
+---------------
+Cookies make YouTube think the request is from a real logged-in browser,
+not an automated script. This bypasses IP blocks.

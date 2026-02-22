@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 300px;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .stats {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+    
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    
+    .attention-score {
+      font-size: 24px;
+      font-weight: bold;
+      text-align: center;
+      margin: 10px 0;
+    }
+    
+    .good { color: #4CAF50; }
+    .warning { color: #FF9800; }
+    .danger { color: #F44336; }
+    
+    .controls {
+      margin-top: 15px;
+    }
+    
+    select, button {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    
+    button {
+      background: #2196F3;
+      color: white;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background: #1976D2;
+    }
+    
+    .blocked-sites {
+      margin-top: 15px;
+    }
+    
+    .site-list {
+      max-height: 100px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      padding: 5px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h3>MindForge Focus</h3>
+  </div>
+  
+  <div class="stats">
+    <div class="stat-item">
+      <span>Tab Switches:</span>
+      <span id="tabSwitches">0</span>
+    </div>
+    <div class="stat-item">
+      <span>Session Time:</span>
+      <span id="sessionTime">0m</span>
+    </div>
+    <div class="attention-score">
+      <div>Attention Score</div>
+      <div id="attentionScore" class="good">100%</div>
+    </div>
+  </div>
+  
+  <div class="controls">
+    <label>Study Mode:</label>
+    <select id="studyMode">
+      <option value="basic">Basic Mode</option>
+      <option value="exam">Exam Mode (High Restriction)</option>
+    </select>
+    
+    <button id="resetSession">Reset Session</button>
+    <button id="focusTimer">Start 25min Focus</button>
+  </div>
+  
+  <div class="blocked-sites">
+    <label>Blocked Sites:</label>
+    <div class="site-list" id="blockedSites">
+      Loading...
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

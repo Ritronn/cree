@@ -1,0 +1,80 @@
+{
+  "feature_columns": [
+    "time_per_question",
+    "wrong_attempts",
+    "rapid_guessing_count",
+    "pause_count",
+    "pause_duration_avg",
+    "video_replays",
+    "tab_switches",
+    "scroll_speed",
+    "hint_usage",
+    "previous_concept_score",
+    "session_time_of_day",
+    "attempt_number",
+    "concept_id_enc",
+    "engagement_score",
+    "struggle_index",
+    "pause_intensity",
+    "speed_index"
+  ],
+  "base_feature_columns": [
+    "time_per_question",
+    "wrong_attempts",
+    "rapid_guessing_count",
+    "pause_count",
+    "pause_duration_avg",
+    "video_replays",
+    "tab_switches",
+    "scroll_speed",
+    "hint_usage",
+    "previous_concept_score",
+    "session_time_of_day",
+    "attempt_number",
+    "concept_id_enc"
+  ],
+  "state_classes": [
+    "bored",
+    "confused",
+    "focused",
+    "overloaded"
+  ],
+  "action_classes": [
+    "easier",
+    "harder",
+    "much_easier",
+    "prerequisite",
+    "same"
+  ],
+  "concept_classes": [
+    "algebra",
+    "calculus",
+    "geometry",
+    "linear_algebra",
+    "physics",
+    "probability",
+    "statistics",
+    "trigonometry"
+  ],
+  "model_performance": {
+    "learning_state_classifier": {
+      "test_accuracy": 0.9981333333333333,
+      "test_f1": 0.9981334570976163
+    },
+    "weak_point_predictor": {
+      "test_accuracy": 0.8321333333333333,
+      "test_f1": 0.8710173137998156
+    },
+    "difficulty_action_recommender": {
+      "test_accuracy": 0.9770666666666666,
+      "test_f1": 0.977248521791838
+    }
+  },
+  "training_data_shape": [
+    50000,
+    28
+  ],
+  "train_size": 35000,
+  "val_size": 7500,
+  "test_size": 7500
+}
