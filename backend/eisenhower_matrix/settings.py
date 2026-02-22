@@ -65,18 +65,20 @@ TEMPLATES = [
 WSGI_APPLICATION = 'eisenhower_matrix.wsgi.application'
 
 # Database
-# Supabase PostgreSQL connection
+# Supabase PostgreSQL connection with Session Pooler
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.getenv('DATABASE_NAME', 'postgres'),
         'USER': os.getenv('DATABASE_USER', 'postgres'),
         'PASSWORD': os.getenv('DATABASE_PASSWORD'),
-        'HOST': os.getenv('DATABASE_HOST'),
-        'PORT': os.getenv('DATABASE_PORT', '5432'),
+        'HOST': os.getenv('DATABASE_HOST'),  # Use pooler host
+        'PORT': os.getenv('DATABASE_PORT', '6543'),  # Session pooler port (6543 for transaction mode)
         'OPTIONS': {
             'sslmode': 'require',  # Supabase requires SSL
         },
+        'CONN_MAX_AGE': 600,  # Keep connections alive for 10 minutes
+        'CONN_HEALTH_CHECKS': True,  # Enable connection health checks
     }
 }
 

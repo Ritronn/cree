@@ -13,3 +13,5 @@ redis==5.0.1
 hypothesis==6.92.1
 supabase==2.3.0
 pyjwt==2.8.0
+groq==1.0.0
+requests==2.32.5
