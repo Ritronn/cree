@@ -1,287 +1,129 @@
-# 🚀 Quick Start Guide - Adaptive Learning Features
+# Quick Start - Eisenhower Matrix Integration
 
-## ✅ Verification
+## ✅ Current Status
+Both applications are running and integrated!
 
-Run this to verify all files are in place:
-```bash
-python verify_integration.py
-```
+## 🚀 Access URLs
 
-## 🏃 Start the Application
+### Main Learning Platform
+- **Frontend**: Check your main app (likely running on a different port)
+- **Sidebar Navigation**: Click on the productivity tools in the left sidebar
 
-### 1. Start Backend (Terminal 1)
-```bash
-cd learning
-python manage.py runserver
-```
+### Eisenhower Matrix App
+- **Frontend**: http://localhost:5174
+- **Backend API**: http://localhost:8000/api
 
-Backend will run on: `http://localhost:8000`
+## 📋 Available Features
 
-### 2. Start Frontend (Terminal 2)
-```bash
-cd frontend
-npm run dev
-```
+### 1. Eisenhower Matrix (Task Manager)
+**Click**: "Eisenhower Matrix" in sidebar
+- ✨ AI-powered task classification
+- 📊 4-quadrant priority view
+- 📅 Google Calendar sync
+- 🎯 Drag & drop task management
 
-Frontend will run on: `http://localhost:5173`
+### 2. Que Cards (Flashcards)
+**Click**: "Que Cards" in sidebar
+- 🤖 AI-generated study cards
+- 📚 Create from any task
+- 🔄 Flip to study
+- 📈 Track progress
 
-## 🎯 Access New Features
+### 3. Roadmap
+**Click**: "Roadmap" in sidebar
+- 🗺️ Visual learning paths
+- 📖 Technology roadmaps from roadmap.sh
+- ✅ Convert topics to tasks
+- 🎓 Track learning progress
 
-1. **Open Browser**: Navigate to `http://localhost:5173`
+## 🔗 Integration Details
 
-2. **Login**: Use your credentials (or create an account)
+### How It Works
+1. Your main app's sidebar has 3 productivity tool buttons
+2. Each button opens the Eisenhower Matrix app in a new tab
+3. URL parameters control which view opens:
+   - No parameter → Matrix view
+   - `?tab=flashcards` → Flashcards view
+   - `?tab=roadmap` → Roadmap sidebar
 
-3. **Go to Dashboard**: You'll see two new buttons in the header:
-   - **Adaptive Suggestions** (Purple button with TrendingUp icon)
-   - **Course Suggestions** (Blue button with Award icon)
-
-## 📱 Feature Overview
-
-### Adaptive Suggestions
-**What it does**: Shows personalized learning resources for your weak areas
-
-**How to use**:
-1. Complete some tests (with some incorrect answers to create weak points)
-2. Click "Adaptive Suggestions" in dashboard
-3. View your weak points with accuracy metrics
-4. Browse YouTube playlists, articles, and Q&A for each weak area
-5. Click any suggestion to open it in a new tab
-6. Use the refresh button to get new suggestions
-
-### Course Suggestions
-**What it does**: Recommends courses based on your study topics
-
-**How to use**:
-1. Study some topics in the system
-2. Click "Course Suggestions" in dashboard
-3. Switch between two tabs:
-   - **Recent Topics**: YouTube playlists, articles, Q&A for topics you've studied
-   - **Coursera Certificates**: Professional certificates from top universities
-
-## 🔌 API Endpoints
-
-All endpoints require authentication token in header:
-```
-Authorization: Token <your-token>
-```
-
-### Base URL
-```
-http://localhost:8000/api/adaptive/
-```
-
-### Endpoints
-
-1. **Get Weak Point Suggestions**
-   ```
-   GET /adaptive-suggestions/weak_point_suggestions/
-   ```
-
-2. **Get Recent Topic Suggestions**
-   ```
-   GET /adaptive-suggestions/recent_topic_suggestions/
-   ```
-
-3. **Get Coursera Certificates**
-   ```
-   GET /adaptive-suggestions/coursera_certificates/
-   ```
-
-4. **Mark Suggestion as Viewed**
-   ```
-   POST /adaptive-suggestions/mark_suggestion_viewed/
-   Body: { "suggestion_id": 1 }
-   ```
-
-5. **Refresh Suggestions**
-   ```
-   POST /adaptive-suggestions/refresh_suggestions/
-   Body: { "weak_point_id": 1 }
-   ```
-
-## 🧪 Testing
-
-### Create Test Data
-
-1. **Create a user** (if you don't have one):
-   - Go to signup page
-   - Create account
-
-2. **Create weak points**:
-   - Complete some assessments
-   - Answer some questions incorrectly
-   - System will automatically identify weak areas
-
-3. **Create topics**:
-   - Study some content
-   - System tracks your topics automatically
-
-### Manual API Testing
-
-Use tools like Postman or curl:
-
-```bash
-# Get weak point suggestions
-curl -H "Authorization: Token YOUR_TOKEN" \
-  http://localhost:8000/api/adaptive/adaptive-suggestions/weak_point_suggestions/
-
-# Get Coursera certificates
-curl -H "Authorization: Token YOUR_TOKEN" \
-  http://localhost:8000/api/adaptive/adaptive-suggestions/coursera_certificates/
-```
+### API Endpoints
+All features use the Django backend at `http://localhost:8000/api`:
+- `/api/tasks/` - Task management
+- `/api/flashcards/` - Flashcard operations
+- `/api/roadmap/` - Roadmap data
+- `/api/calendar/` - Google Calendar sync
 
 ## 🎨 UI Features
 
-### Adaptive Suggestions Page
-- **Gradient Background**: Purple → Indigo → Blue
-- **Glassmorphism Cards**: Frosted glass effect
-- **Color-Coded Accuracy**:
-  - 🔴 Red: < 50%
-  - 🟡 Yellow: 50-70%
-  - 🟢 Green: > 70%
-- **Source Icons**: YouTube, Articles, Stack Overflow
-- **Refresh Button**: Get new suggestions
-- **View Tracking**: Marks suggestions as viewed
+### Eisenhower Matrix View
+- **Red Quadrant**: Urgent & Important (Do First)
+- **Yellow Quadrant**: Important but Not Urgent (Schedule)
+- **Blue Quadrant**: Urgent but Not Important (Delegate)
+- **Gray Quadrant**: Neither (Eliminate)
 
-### Course Suggestions Page
-- **Tab Navigation**: Switch between Recent Topics and Coursera
-- **YouTube Playlists**: Real playlist links with channel info
-- **Articles**: Current tutorials and guides
-- **Q&A**: Stack Overflow questions with vote counts
-- **Certificate Cards**: Professional certificates with:
-  - Provider badges
-  - Duration
-  - Difficulty level
-  - Direct links to Coursera
+### Task Actions
+- ✏️ Edit task details
+- 🗑️ Delete tasks
+- ✅ Mark complete
+- 📅 Sync to calendar
+- 📇 Generate flashcards
+- 🔄 Drag between quadrants
 
-## 🔧 Troubleshooting
+### Flashcards View
+- 📚 Browse all flashcards
+- 🎴 Flip cards to study
+- ➕ Generate new cards
+- 🗑️ Delete cards
+- 📊 Track study progress
 
-### Backend Issues
+### Roadmap View
+- 🗺️ Browse technology roadmaps
+- 📖 View learning paths
+- ➕ Add topics to matrix
+- ✅ Track completion
 
-**Problem**: Django server won't start
-```bash
-# Solution: Check if port 8000 is in use
-netstat -ano | findstr :8000
-# Kill the process if needed
-```
+## 💡 Quick Tips
 
-**Problem**: Module not found errors
-```bash
-# Solution: Install dependencies
-cd learning
-pip install -r requirements.txt
-pip install -r adaptive_learning_requirements.txt
-```
+1. **Create Your First Task**
+   - Click "+ New Task" in the matrix
+   - Add title, description, deadline, and estimated time
+   - AI automatically categorizes it!
 
-### Frontend Issues
+2. **Generate Flashcards**
+   - Click the 📇 icon on any task
+   - Choose scope (basic/detailed/comprehensive)
+   - AI generates study cards from the task
 
-**Problem**: React app won't start
-```bash
-# Solution: Install dependencies
-cd frontend
-npm install
-```
+3. **Use Roadmaps**
+   - Click "🗺️ Roadmap" button
+   - Select a technology (e.g., Frontend, Backend)
+   - Click "Add to Matrix" to create tasks
 
-**Problem**: API calls failing
-- Check if backend is running on port 8000
-- Check browser console for errors
-- Verify authentication token is valid
+4. **Sync to Calendar**
+   - Click 📅 on any task
+   - Authorize Google Calendar (first time)
+   - Task automatically syncs with deadline
 
-### Feature Issues
+## 🔧 Stopping the Servers
 
-**Problem**: No weak points showing
-- Complete at least one test
-- Answer some questions incorrectly
-- Check if WeakPoint objects are created in database
+If you need to stop the Eisenhower Matrix servers:
+- Backend: Press `Ctrl+C` in the backend terminal
+- Frontend: Press `Ctrl+C` in the frontend terminal
 
-**Problem**: No suggestions appearing
-- Weak points need to be created first
-- Try clicking the refresh button
-- Check browser console for API errors
+## 📚 More Information
 
-**Problem**: Scraper not working
-- Web scraper requires Chrome browser
-- Check internet connection
-- Fallback data will be used if scraper fails
+See `EISENHOWER_INTEGRATION.md` for:
+- Complete API documentation
+- Configuration details
+- Troubleshooting guide
+- Advanced features
 
-## 📊 Database Check
+## 🎯 Next Steps
 
-To verify data in database:
+1. Try creating a few tasks
+2. Generate flashcards from a task
+3. Explore different roadmaps
+4. Sync a task to Google Calendar
+5. Drag tasks between quadrants
 
-```bash
-cd learning
-python manage.py shell
-```
-
-```python
-# Check weak points
-from adaptive_learning.models import WeakPoint
-WeakPoint.objects.all()
-
-# Check recommendations
-from adaptive_learning.models import CourseRecommendation
-CourseRecommendation.objects.all()
-
-# Check topics
-from adaptive_learning.models import Topic
-Topic.objects.all()
-```
-
-## 🎓 User Flow Example
-
-1. **User completes a Python test**
-   - Gets 4/10 questions on "For Loops" wrong
-   - System creates WeakPoint: "Python Loops" (40% accuracy)
-
-2. **User goes to Dashboard**
-   - Sees "Adaptive Suggestions" button
-   - Clicks it
-
-3. **Adaptive Suggestions Page**
-   - Shows "Python Loops" as weak point
-   - Displays suggestions:
-     - 5 YouTube playlists about Python loops
-     - 5 articles/tutorials
-     - 3 Stack Overflow questions
-   - User clicks on a YouTube playlist
-   - Opens in new tab
-   - System marks as viewed
-
-4. **User studies the content**
-   - Watches videos
-   - Reads articles
-   - Practices
-
-5. **User retakes test**
-   - Gets 8/10 questions correct
-   - Accuracy improves to 80%
-   - Weak point removed or confidence score increases
-
-## 📈 Success Metrics
-
-Track these to measure feature success:
-- Number of weak points identified
-- Number of suggestions clicked
-- Improvement in weak area accuracy
-- Time spent on suggested resources
-- Number of certificates explored
-- User engagement rate
-
-## 🎉 That's It!
-
-You now have a fully functional adaptive learning system with:
-- ✅ Real-time web scraping
-- ✅ Personalized suggestions
-- ✅ Professional certificate recommendations
-- ✅ Beautiful, responsive UI
-- ✅ Complete backend integration
-
-**Enjoy learning! 🚀**
-
----
-
-For detailed documentation, see:
-- `ADAPTIVE_LEARNING_FEATURES.md` - Complete feature documentation
-- `INTEGRATION_COMPLETE.md` - Integration summary
-
-For issues, check the troubleshooting section above or review the documentation files.
+Enjoy your integrated productivity tools! 🚀

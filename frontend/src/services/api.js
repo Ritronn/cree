@@ -167,9 +167,11 @@ export const contentAPI = {
 
   // Upload new content
   upload: (formData) => {
+    // Don't set Content-Type manually — let axios auto-detect FormData
+    // and set multipart/form-data with the correct boundary parameter
     return api.post('/content/upload/', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': undefined,
       },
     });
   },

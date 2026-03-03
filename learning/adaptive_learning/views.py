@@ -71,6 +71,9 @@ class ContentViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def upload(self, request):
         """Upload and process content"""
+        print(f"[Upload] Received data: {dict(request.data)}")
+        print(f"[Upload] Content-Type: {request.content_type}")
+        
         # Auto-create topic if not provided
         topic_id = request.data.get('topic')
         if not topic_id:
@@ -87,15 +90,24 @@ class ContentViewSet(viewsets.ModelViewSet):
             data = request.data
 
         serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            print(f"[Upload] Serializer errors: {serializer.errors}")
+            return Response(
+                {'error': serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         content = serializer.save()
         
-        # Process content asynchronously (or synchronously for hackathon)
+        # Process content (extract transcript)
         try:
             process_content(content)
             content.processed = True
             content.save()
+            print(f"[Upload] Content {content.id} processed successfully, transcript length: {len(content.transcript or '')}")
         except Exception as e:
+            print(f"[Upload] Content processing failed: {e}")
+            import traceback
+            traceback.print_exc()
             return Response(
                 {'error': f'Content processing failed: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -603,10 +615,29 @@ class AssessmentViewSet(viewsets.ModelViewSet):
         response_data = serializer.data
         response_data['test_number'] = assessment.test_number
         
-        # --- After Test completion: generate Test 2 (if Test 1) + send email report ---
+        # --- After Test completion: generate Test 2 immediately (if Test 1) + send email report in background ---
+        
+        # Generate Test 2 IMMEDIATELY if this is Test 1
+        if assessment.test_number == 1:
+            try:
+                from .gemini_mcq_service import create_followup_assessment
+                print(f"[Test1] Generating Test 2 immediately...")
+                test2 = create_followup_assessment(assessment.id, score_percentage=accuracy)
+                print(f"[Test1] ✅ Test 2 generated (ID: {test2.id})")
+                response_data['test2_id'] = test2.id
+                response_data['test2_ready'] = True
+                response_data['followup_message'] = 'Test 2 is ready! Check your dashboard.'
+            except Exception as e:
+                print(f"[Test1] ⚠️ Failed to generate Test 2: {e}")
+                import traceback
+                traceback.print_exc()
+                response_data['test2_ready'] = False
+                response_data['test2_error'] = str(e)
+        
+        # Send email report in background (non-blocking)
         import threading
         
-        def _post_test_actions(assessment_id, user_id, test_num, score_pct):
+        def _send_email_report(assessment_id, user_id):
             try:
                 from django import db
                 db.connection.close()
@@ -620,45 +651,26 @@ class AssessmentViewSet(viewsets.ModelViewSet):
                 user = User.objects.get(id=user_id)
                 asmt = AssessmentModel.objects.get(id=assessment_id)
                 
-                # 1. Generate and send email report
                 try:
                     report = ReportGenerator.generate_assessment_report(assessment_id)
                     result = EmailService.send_test_report(user, asmt, report)
-                    print(f"[PostTest] Email result: {result}")
+                    print(f"[Email] Report sent: {result}")
                 except Exception as e:
-                    print(f"[PostTest] Email/report failed: {e}")
-                    # Try basic email as fallback
+                    print(f"[Email] Failed: {e}")
                     try:
                         EmailService._send_basic_email(user, asmt)
                     except Exception as e2:
-                        print(f"[PostTest] Basic email also failed: {e2}")
-                
-                # 2. If this was Test 1, generate Test 2
-                if test_num == 1:
-                    try:
-                        from .gemini_mcq_service import create_followup_assessment
-                        test2 = create_followup_assessment(assessment_id, score_percentage=score_pct)
-                        print(f"[PostTest] ✅ Test 2 generated (ID: {test2.id}) with score-based difficulty")
-                    except Exception as e:
-                        print(f"[PostTest] ⚠️ Failed to generate Test 2: {e}")
-                        import traceback
-                        traceback.print_exc()
+                        print(f"[Email] Basic email also failed: {e2}")
             
             except Exception as e:
-                print(f"[PostTest] Thread error: {e}")
-                import traceback
-                traceback.print_exc()
+                print(f"[Email] Thread error: {e}")
         
         t = threading.Thread(
-            target=_post_test_actions,
-            args=(assessment.id, request.user.id, assessment.test_number, accuracy),
+            target=_send_email_report,
+            args=(assessment.id, request.user.id),
             daemon=True
         )
         t.start()
-        
-        if assessment.test_number == 1:
-            response_data['followup_test_generating'] = True
-            response_data['followup_message'] = 'Your adaptive follow-up test (Test 2) is being prepared and will be available on your dashboard within 1-2 minutes.'
         
         return Response(response_data)
     

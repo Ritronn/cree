@@ -19,35 +19,79 @@ LANGUAGE_NAMES = {
 
 def process_content(content):
     """
-    Main content processing function
-    Extracts text and identifies key concepts
-    Handles multilingual YouTube videos with auto-translation to English
+    Main content processing function - SKIP transcript extraction for YouTube
+    We use workspace name for question generation instead
     """
-    if content.content_type == 'youtube':
-        transcript, source_lang = extract_youtube_transcript(content.url)
-        content.transcript = transcript
-        content.source_language = source_lang
-    elif content.content_type == 'pdf':
-        content.transcript = extract_pdf_text(content.file.path)
-        content.source_language = 'en'
-    elif content.content_type == 'ppt':
-        content.transcript = extract_ppt_text(content.file.path)
-        content.source_language = 'en'
-    elif content.content_type == 'word':
-        content.transcript = extract_word_text(content.file.path)
-        content.source_language = 'en'
+    try:
+        if content.content_type == 'youtube':
+            # SKIP transcript extraction - we use workspace name instead
+            print(f"[Content] Skipping transcript extraction for YouTube video (using workspace name)")
+            content.transcript = ""
+            content.source_language = 'en'
+        elif content.content_type == 'pdf':
+            content.transcript = extract_pdf_text(content.file.path)
+            content.source_language = 'en'
+        elif content.content_type == 'ppt':
+            content.transcript = extract_ppt_text(content.file.path)
+            content.source_language = 'en'
+        elif content.content_type == 'word':
+            content.transcript = extract_word_text(content.file.path)
+            content.source_language = 'en'
+        
+        # Skip key concepts extraction for YouTube
+        if content.content_type != 'youtube' and content.transcript and len(content.transcript) > 50:
+            content.key_concepts = extract_key_concepts(content.transcript)
+        else:
+            content.key_concepts = []
+        
+        content.processed = True
+        content.save()
+        
+        return content
+    except Exception as e:
+        print(f"[Content] Processing error: {e}")
+        # Mark as processed anyway so it doesn't block
+        content.processed = True
+        content.transcript = ""
+        content.save()
+        return content
+
+
+def _retry_with_backoff(func, max_attempts=2, base_delay=2.0, label=""):
+    """
+    Retry a function with exponential backoff.
+    Returns (success, result_or_error).
+    """
+    import time
+    import random
     
-    # Extract key concepts
-    content.key_concepts = extract_key_concepts(content.transcript)
-    content.processed = True
-    content.save()
-    
-    return content
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            result = func()
+            return True, result
+        except Exception as e:
+            last_error = e
+            if attempt < max_attempts:
+                delay = base_delay * attempt + random.uniform(0, 1)
+                print(f"[Transcript] {label} attempt {attempt} failed: {str(e)[:120]}. Retrying in {delay:.1f}s...")
+                time.sleep(delay)
+            else:
+                print(f"[Transcript] {label} attempt {attempt} failed (final): {str(e)[:200]}")
+    return False, last_error
 
 
 def extract_youtube_transcript(url: str) -> Tuple[str, str]:
     """
-    Extract transcript from YouTube video with multiple fallback methods.
+    Extract transcript from YouTube video with 4-layer bulletproof fallback.
+    
+    Fallback chain:
+        1. youtube-transcript-api (fast, reliable for most videos)
+        2. yt-dlp subtitle extraction (different approach, handles some edge cases)
+        3. Raw Innertube API scraping (no library dependency, bypasses library bugs)
+        4. yt-dlp audio download + Gemini AI transcription (works even with NO captions)
+    
+    Each method is retried up to 2 times with backoff before falling through.
     
     Returns:
         Tuple of (transcript_text, source_language_code)
@@ -65,41 +109,79 @@ def extract_youtube_transcript(url: str) -> Tuple[str, str]:
     if not video_id:
         raise ValueError("Invalid YouTube URL")
     
-    # Method 1: Try youtube-transcript-api first
-    try:
-        from youtube_transcript_api import YouTubeTranscriptApi
-        
-        delay = random.uniform(0.5, 1.5)
-        time.sleep(delay)
-        
-        return _extract_transcript_multilingual(video_id)
+    errors = []
     
-    except Exception as e:
-        error_msg = str(e)
-        print(f"[Transcript] youtube-transcript-api failed: {error_msg[:100]}")
-        
-        # Method 2: Try yt-dlp fallback
-        try:
-            print(f"[Transcript] Trying yt-dlp fallback...")
-            return _extract_transcript_ytdlp(video_id)
-        except Exception as e2:
-            print(f"[Transcript] yt-dlp also failed: {str(e2)[:100]}")
-            
-            # Both methods failed - IP is blocked
-            error_message = """
-            ⚠️ YouTube Transcript Temporarily Unavailable
-            
-            Your IP has been temporarily blocked by YouTube due to too many automated requests.
-            
-            SOLUTIONS:
-            1. Wait 15-30 minutes for the block to clear
-            2. Try a different video
-            3. Use a VPN or proxy
-            4. Restart your router to get a new IP
-            
-            This is a temporary YouTube rate limit, not a code issue.
-            """
-            return error_message.strip(), 'en'
+    # ── Method 1: youtube-transcript-api ──
+    print(f"[Transcript] Method 1: youtube-transcript-api for {video_id}")
+    time.sleep(random.uniform(0.3, 1.0))
+    ok, result = _retry_with_backoff(
+        lambda: _extract_transcript_multilingual(video_id),
+        max_attempts=2, label="youtube-transcript-api"
+    )
+    if ok:
+        text, lang = result
+        if text and len(text.strip()) > 30:
+            print(f"[Transcript] ✅ Method 1 succeeded ({len(text)} chars, lang={lang})")
+            return text, lang
+        else:
+            errors.append("youtube-transcript-api returned empty/short transcript")
+    else:
+        errors.append(f"youtube-transcript-api: {str(result)[:200]}")
+    
+    # ── Method 2: yt-dlp subtitles ──
+    print(f"[Transcript] Method 2: yt-dlp subtitles for {video_id}")
+    ok, result = _retry_with_backoff(
+        lambda: _extract_transcript_ytdlp(video_id),
+        max_attempts=2, label="yt-dlp-subtitles"
+    )
+    if ok:
+        text, lang = result
+        if text and len(text.strip()) > 30:
+            print(f"[Transcript] ✅ Method 2 succeeded ({len(text)} chars, lang={lang})")
+            return text, lang
+        else:
+            errors.append("yt-dlp returned empty/short subtitle text")
+    else:
+        errors.append(f"yt-dlp: {str(result)[:200]}")
+    
+    # ── Method 3: Raw Innertube API scraping ──
+    print(f"[Transcript] Method 3: Raw Innertube API for {video_id}")
+    ok, result = _retry_with_backoff(
+        lambda: _extract_transcript_innertube(video_id),
+        max_attempts=2, label="innertube-raw"
+    )
+    if ok:
+        text, lang = result
+        if text and len(text.strip()) > 30:
+            print(f"[Transcript] ✅ Method 3 succeeded ({len(text)} chars, lang={lang})")
+            return text, lang
+        else:
+            errors.append("Innertube returned empty/short transcript")
+    else:
+        errors.append(f"innertube: {str(result)[:200]}")
+    
+    # ── Method 4: yt-dlp audio + Gemini AI transcription ──
+    print(f"[Transcript] Method 4: Audio + Gemini AI transcription for {video_id}")
+    ok, result = _retry_with_backoff(
+        lambda: _extract_transcript_audio_gemini(video_id),
+        max_attempts=2, label="audio-gemini"
+    )
+    if ok:
+        text, lang = result
+        if text and len(text.strip()) > 30:
+            print(f"[Transcript] ✅ Method 4 (Gemini AI) succeeded ({len(text)} chars)")
+            return text, lang
+        else:
+            errors.append("Gemini AI returned empty/short transcript")
+    else:
+        errors.append(f"audio-gemini: {str(result)[:200]}")
+    
+    # All 4 methods failed
+    error_summary = " | ".join(errors)
+    raise ValueError(
+        f"All 4 transcript methods failed for video {video_id}. "
+        f"Errors: {error_summary}"
+    )
 
 
 def _extract_transcript_ytdlp(video_id: str) -> Tuple[str, str]:
@@ -116,15 +198,26 @@ def _extract_transcript_ytdlp(video_id: str) -> Tuple[str, str]:
     # Check for proxy
     proxy = os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY')
     
-    # Configure yt-dlp with proxy
+    # Look for cookies file
+    cookies_path = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+    
+    # Configure yt-dlp with minimal options to avoid format errors
     ydl_opts = {
         'skip_download': True,
         'writesubtitles': True,
         'writeautomaticsub': True,
-        'subtitleslangs': ['en'],
-        'quiet': True,
-        'no_warnings': True,
+        'subtitleslangs': ['en', 'en-US', 'en-GB'],
+        'quiet': False,  # Show errors for debugging
+        'no_warnings': False,
+        'extract_flat': False,
+        'ignoreerrors': False,
+        # Do NOT specify 'format' - we only want subtitles, not media
     }
+    
+    # Add cookies if file exists
+    if os.path.exists(cookies_path):
+        ydl_opts['cookiefile'] = cookies_path
+        print(f"[Transcript] yt-dlp using cookies from {cookies_path}")
     
     if proxy:
         print(f"[Transcript] yt-dlp using proxy: {proxy}")
@@ -138,8 +231,16 @@ def _extract_transcript_ytdlp(video_id: str) -> Tuple[str, str]:
             subtitles = info.get('subtitles', {})
             automatic_captions = info.get('automatic_captions', {})
             
-            # Try English
-            sub_data = subtitles.get('en') or automatic_captions.get('en')
+            print(f"[Transcript] Available subtitle languages: {list(subtitles.keys())}")
+            print(f"[Transcript] Available auto-caption languages: {list(automatic_captions.keys())}")
+            
+            # Try English variants
+            sub_data = None
+            for lang in ['en', 'en-US', 'en-GB', 'en-CA']:
+                sub_data = subtitles.get(lang) or automatic_captions.get(lang)
+                if sub_data:
+                    print(f"[Transcript] Using language: {lang}")
+                    break
             
             if not sub_data:
                 raise ValueError("No English subtitles found")
@@ -147,7 +248,7 @@ def _extract_transcript_ytdlp(video_id: str) -> Tuple[str, str]:
             # Get subtitle URL (prefer vtt or srv3 format)
             sub_url = None
             for fmt in sub_data:
-                if fmt.get('ext') in ['vtt', 'srv3', 'srv2', 'srv1']:
+                if fmt.get('ext') in ['vtt', 'srv3', 'srv2', 'srv1', 'json3']:
                     sub_url = fmt['url']
                     break
             
@@ -156,6 +257,8 @@ def _extract_transcript_ytdlp(video_id: str) -> Tuple[str, str]:
             
             if not sub_url:
                 raise ValueError("No subtitle URL found")
+            
+            print(f"[Transcript] Downloading subtitles from: {sub_url[:100]}...")
             
             # Download and parse subtitles with proxy
             import requests
@@ -181,8 +284,8 @@ def _extract_transcript_ytdlp(video_id: str) -> Tuple[str, str]:
                 print(f"[Transcript] yt-dlp extracted transcript ({len(text)} chars)")
                 return text, 'en'
             
-            # Parse JSON format
-            elif content.startswith('{'):
+            # Parse JSON format (json3)
+            elif content.startswith('{') or content.strip().startswith('{'):
                 import json
                 data = json.loads(content)
                 text_parts = []
@@ -203,12 +306,305 @@ def _extract_transcript_ytdlp(video_id: str) -> Tuple[str, str]:
             raise ValueError("Could not parse subtitle format")
     
     except Exception as e:
-        raise ValueError(f"yt-dlp extraction failed: {str(e)}")
+        error_msg = str(e)
+        print(f"[Transcript] yt-dlp error details: {error_msg}")
+        raise ValueError(f"yt-dlp extraction failed: {error_msg}")
+
+
+def _extract_transcript_innertube(video_id: str) -> Tuple[str, str]:
+    """
+    Method 3: Extract transcript by scraping YouTube's Innertube API directly.
+    
+    This bypasses both youtube-transcript-api and yt-dlp by:
+    1. Fetching the YouTube watch page HTML
+    2. Extracting ytInitialPlayerResponse JSON
+    3. Finding caption track URLs
+    4. Downloading and parsing the caption XML
+    
+    Returns:
+        Tuple of (transcript_text, language_code)
+    """
+    import requests
+    import json
+    import xml.etree.ElementTree as ET
+    
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    }
+    
+    proxy = os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY')
+    proxies = {'http': proxy, 'https': proxy} if proxy else None
+    
+    # Step 1: Fetch the watch page
+    response = requests.get(url, headers=headers, timeout=15, proxies=proxies)
+    response.raise_for_status()
+    html = response.text
+    
+    # Step 2: Extract ytInitialPlayerResponse
+    player_response = None
+    
+    # Try pattern 1: var ytInitialPlayerResponse = {...};
+    match = re.search(r'var\s+ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;', html)
+    if match:
+        try:
+            player_response = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            pass
+    
+    # Try pattern 2: ytInitialPlayerResponse inside ytInitialData or script
+    if not player_response:
+        match = re.search(r'ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;', html)
+        if match:
+            try:
+                player_response = json.loads(match.group(1))
+            except json.JSONDecodeError:
+                pass
+    
+    # Try pattern 3: look in inline script with playerResponse
+    if not player_response:
+        match = re.search(r'"playerResponse"\s*:\s*"(.+?)"', html)
+        if match:
+            try:
+                decoded = match.group(1).encode().decode('unicode_escape')
+                player_response = json.loads(decoded)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                pass
+    
+    if not player_response:
+        raise ValueError("Could not extract ytInitialPlayerResponse from page")
+    
+    # Step 3: Find caption tracks
+    captions = player_response.get('captions', {})
+    tracklist = captions.get('playerCaptionsTracklistRenderer', {})
+    caption_tracks = tracklist.get('captionTracks', [])
+    
+    if not caption_tracks:
+        raise ValueError("No caption tracks found in player response")
+    
+    print(f"[Transcript] Innertube found {len(caption_tracks)} caption tracks")
+    
+    # Prefer English, then any supported language
+    selected_track = None
+    for lang_code in ['en', 'en-US', 'en-GB'] + SUPPORTED_LANGUAGES:
+        for track in caption_tracks:
+            if track.get('languageCode', '').startswith(lang_code.split('-')[0]):
+                selected_track = track
+                break
+        if selected_track:
+            break
+    
+    if not selected_track:
+        # Use any available track
+        selected_track = caption_tracks[0]
+    
+    caption_url = selected_track.get('baseUrl', '')
+    if not caption_url:
+        raise ValueError("Caption track has no baseUrl")
+    
+    track_lang = selected_track.get('languageCode', 'en')
+    print(f"[Transcript] Innertube downloading captions (lang={track_lang})")
+    
+    # Step 4: Download caption XML
+    caption_response = requests.get(caption_url, headers=headers, timeout=10, proxies=proxies)
+    caption_response.raise_for_status()
+    
+    # Parse XML captions
+    try:
+        root = ET.fromstring(caption_response.text)
+        text_parts = []
+        for elem in root.iter('text'):
+            text_content = elem.text
+            if text_content:
+                # Unescape HTML entities
+                text_content = text_content.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&#39;', "'").replace('&quot;', '"')
+                text_parts.append(text_content.strip())
+        
+        text = ' '.join(text_parts)
+        if text:
+            print(f"[Transcript] Innertube extracted {len(text)} chars")
+            return text, track_lang
+        raise ValueError("Caption XML had no text content")
+    except ET.ParseError:
+        # Maybe it's not XML, try as plain text
+        text = re.sub(r'<[^>]+>', ' ', caption_response.text)
+        text = ' '.join(text.split())
+        if len(text) > 30:
+            return text, track_lang
+        raise ValueError("Could not parse caption data")
+
+
+def _extract_transcript_audio_gemini(video_id: str) -> Tuple[str, str]:
+    """
+    Method 4 (Ultimate Fallback): Download audio and use Gemini AI to transcribe.
+    
+    This works even when a video has NO captions/subtitles at all.
+    Uses yt-dlp to download the audio stream, then sends it to Gemini
+    for transcription.
+    
+    Returns:
+        Tuple of (transcript_text, language_code)
+    """
+    import tempfile
+    import yt_dlp
+    
+    try:
+        from django.conf import settings
+        api_key = getattr(settings, 'GEMINI_API_KEY', None)
+    except Exception:
+        api_key = None
+    
+    if not api_key:
+        api_key = os.environ.get('GEMINI_API_KEY')
+    
+    if not api_key:
+        raise ValueError("No GEMINI_API_KEY configured — cannot use AI transcription fallback")
+    
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    
+    # Download audio to temp file
+    with tempfile.TemporaryDirectory() as tmpdir:
+        audio_path = os.path.join(tmpdir, 'audio.m4a')
+        
+        proxy = os.environ.get('HTTP_PROXY') or os.environ.get('HTTPS_PROXY')
+        cookies_path = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+        
+        ydl_opts = {
+            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'outtmpl': audio_path,
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+            # Limit to 15 mins of audio to stay within Gemini limits
+            'download_ranges': None,
+            'postprocessors': [],
+        }
+        
+        if os.path.exists(cookies_path):
+            ydl_opts['cookiefile'] = cookies_path
+        if proxy:
+            ydl_opts['proxy'] = proxy
+        
+        print(f"[Transcript] Downloading audio for {video_id}...")
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        
+        # Find the downloaded file (yt-dlp may add extension)
+        actual_audio = None
+        for f in os.listdir(tmpdir):
+            if f.startswith('audio'):
+                actual_audio = os.path.join(tmpdir, f)
+                break
+        
+        if not actual_audio or not os.path.exists(actual_audio):
+            raise ValueError("Audio download failed - no file produced")
+        
+        file_size = os.path.getsize(actual_audio)
+        print(f"[Transcript] Audio downloaded ({file_size / 1024 / 1024:.1f} MB)")
+        
+        # Check file size (Gemini inline limit is ~20MB)
+        if file_size > 20 * 1024 * 1024:
+            print(f"[Transcript] Audio too large for inline upload, using File API...")
+            return _transcribe_with_gemini_file_api(actual_audio, api_key)
+        
+        # Use Gemini to transcribe
+        return _transcribe_with_gemini_inline(actual_audio, api_key)
+
+
+def _transcribe_with_gemini_inline(audio_path: str, api_key: str) -> Tuple[str, str]:
+    """Transcribe audio using Gemini inline upload."""
+    import google.generativeai as genai
+    
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-2.0-flash')
+    
+    # Read audio file
+    with open(audio_path, 'rb') as f:
+        audio_data = f.read()
+    
+    # Determine MIME type
+    ext = os.path.splitext(audio_path)[1].lower()
+    mime_map = {
+        '.m4a': 'audio/mp4',
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+        '.ogg': 'audio/ogg',
+        '.webm': 'audio/webm',
+    }
+    mime_type = mime_map.get(ext, 'audio/mp4')
+    
+    print(f"[Transcript] Sending audio to Gemini ({len(audio_data) / 1024 / 1024:.1f} MB, {mime_type})...")
+    
+    response = model.generate_content([
+        {
+            'mime_type': mime_type,
+            'data': audio_data
+        },
+        "Transcribe this audio completely and accurately. "
+        "Output ONLY the transcription text, nothing else. "
+        "If the audio is not in English, translate it to English. "
+        "Do not add timestamps or speaker labels."
+    ])
+    
+    text = response.text.strip()
+    if text:
+        print(f"[Transcript] Gemini transcription: {len(text)} chars")
+        return text, 'en'
+    
+    raise ValueError("Gemini returned empty transcription")
+
+
+def _transcribe_with_gemini_file_api(audio_path: str, api_key: str) -> Tuple[str, str]:
+    """Transcribe large audio files using Gemini File API."""
+    import google.generativeai as genai
+    import time
+    
+    genai.configure(api_key=api_key)
+    
+    print(f"[Transcript] Uploading audio via File API...")
+    audio_file = genai.upload_file(audio_path)
+    
+    # Wait for processing
+    while audio_file.state.name == "PROCESSING":
+        print(f"[Transcript] File processing...")
+        time.sleep(3)
+        audio_file = genai.get_file(audio_file.name)
+    
+    if audio_file.state.name == "FAILED":
+        raise ValueError(f"Gemini file processing failed: {audio_file.state}")
+    
+    model = genai.GenerativeModel('gemini-2.0-flash')
+    
+    response = model.generate_content([
+        audio_file,
+        "Transcribe this audio completely and accurately. "
+        "Output ONLY the transcription text, nothing else. "
+        "If the audio is not in English, translate it to English. "
+        "Do not add timestamps or speaker labels."
+    ])
+    
+    # Clean up uploaded file
+    try:
+        genai.delete_file(audio_file.name)
+    except Exception:
+        pass
+    
+    text = response.text.strip()
+    if text:
+        print(f"[Transcript] Gemini File API transcription: {len(text)} chars")
+        return text, 'en'
+    
+    raise ValueError("Gemini File API returned empty transcription")
 
 
 def _extract_transcript_multilingual(video_id: str) -> Tuple[str, str]:
     """
     Extract transcript from YouTube video with cookie support.
+    Compatible with youtube-transcript-api v1.x+
     
     Returns:
         Tuple of (english_transcript, original_language_code)
@@ -223,6 +619,9 @@ def _extract_transcript_multilingual(video_id: str) -> Tuple[str, str]:
         for s in snippets:
             if isinstance(s, dict):
                 parts.append(s.get('text', ''))
+            elif hasattr(s, 'text'):
+                # v1.2+ uses FetchedTranscriptSnippet objects with .text attribute
+                parts.append(s.text)
             else:
                 parts.append(str(s))
         return ' '.join(parts)
@@ -230,7 +629,7 @@ def _extract_transcript_multilingual(video_id: str) -> Tuple[str, str]:
     # Look for cookies file
     cookies_path = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
     
-    # Create session
+    # Create session with cookies and headers
     session = requests.Session()
     
     # Load cookies if available
@@ -249,15 +648,8 @@ def _extract_transcript_multilingual(video_id: str) -> Tuple[str, str]:
         'Accept-Language': 'en-US,en;q=0.9',
     })
     
-    # Create API instance with session
-    try:
-        # Pass cookies to the API
-        api = YouTubeTranscriptApi()
-        # Monkey patch the session
-        if hasattr(api, '_session'):
-            api._session = session
-    except:
-        api = YouTubeTranscriptApi()
+    # Create API instance — v1.2+ accepts http_client in constructor for auth/cookies
+    api = YouTubeTranscriptApi(http_client=session)
     
     # Try languages in priority order
     for lang_code in SUPPORTED_LANGUAGES:

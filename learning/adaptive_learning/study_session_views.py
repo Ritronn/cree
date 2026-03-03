@@ -148,49 +148,37 @@ class StudySessionViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
-        """Complete session and generate assessment asynchronously"""
+        """Complete session and generate Test 1 immediately"""
         session = self.get_object()
 
-        # Complete session (instant — no Gemini call)
+        # Complete session
         result = SessionManager.complete_session(session.id)
 
         if 'error' in result:
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
-        # Generate assessment in background thread — don't block the user
-        def _generate_in_background(session_id):
-            try:
-                from django import db
-                db.connection.close()
-                
-                from .models import StudySession
-                sess = StudySession.objects.get(id=session_id)
-                
-                if sess.content and sess.content.transcript:
-                    from .gemini_mcq_service import create_assessment_from_session
-                    assessment = create_assessment_from_session(
-                        session_id=sess.id,
-                        user=sess.user,
-                        content=sess.content
-                    )
-                    print(f"[Session] ✅ Assessment {assessment.id} created for session {session_id}")
-                else:
-                    print(f"[Session] No transcript for session {session_id}, skipping assessment")
-            except Exception as e:
-                print(f"[Session] ⚠️ Assessment generation FAILED for session {session_id}: {e}")
-                import traceback
-                traceback.print_exc()
-
-        import threading
-        t = threading.Thread(target=_generate_in_background, args=(session.id,), daemon=True)
-        t.start()
-
-        # Tell the frontend: session done, test is being prepared
-        from django.utils import timezone
-        import datetime
-        result['test_generating'] = True
-        result['test_available_until'] = (timezone.now() + datetime.timedelta(hours=6)).isoformat()
-        result['message'] = 'Session complete! Your test is being prepared and will be available on your dashboard within 1-2 minutes.'
+        # Generate Test 1 IMMEDIATELY (synchronous)
+        try:
+            from .gemini_mcq_service import create_assessment_from_session
+            
+            print(f"[Session] Generating Test 1 for session {session.id}...")
+            assessment = create_assessment_from_session(
+                session_id=session.id,
+                user=session.user,
+                content=session.content
+            )
+            print(f"[Session] ✅ Test 1 (Assessment {assessment.id}) created successfully")
+            
+            result['test_id'] = assessment.id
+            result['test_ready'] = True
+            result['message'] = 'Session complete! Test 1 is ready.'
+            
+        except Exception as e:
+            print(f"[Session] ⚠️ Test 1 generation FAILED: {e}")
+            import traceback
+            traceback.print_exc()
+            result['test_ready'] = False
+            result['error'] = f'Test generation failed: {str(e)}'
 
         return Response(result)
 

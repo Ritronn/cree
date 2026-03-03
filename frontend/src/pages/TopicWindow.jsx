@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Upload, Link as LinkIcon, FileText, Video, X, Plus, Zap, Send, ChevronLeft, ChevronRight, Loader2, AlertCircle, Download, ExternalLink, Clock, Coffee, CheckCircle, Play, Pause } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { studySessionAPI, contentAPI } from '../services/api';
+import api, { studySessionAPI, contentAPI } from '../services/api';
 
 // Import PDF viewer with correct CSS paths
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -264,7 +264,8 @@ export default function TopicWindow() {
       (async () => {
         try {
           // Upload content and fetch transcript
-          const uploadResponse = await contentAPI.upload({
+          // Send JSON directly (no file, just text fields — no multipart needed)
+          const uploadResponse = await api.post('/content/upload/', {
             title: 'YouTube Video',
             content_type: 'youtube',
             url: youtubeUrl
@@ -642,8 +643,8 @@ export default function TopicWindow() {
                         whileHover={{ x: 4 }}
                         onClick={() => handleContentClick(content)}
                         className={`w-full p-3 rounded-lg border transition-all text-left ${currentContent?.id === content.id
-                            ? 'bg-pink-500/20 border-pink-500/50'
-                            : 'bg-white/5 border-white/10 hover:border-pink-500/30'
+                          ? 'bg-pink-500/20 border-pink-500/50'
+                          : 'bg-white/5 border-white/10 hover:border-pink-500/30'
                           }`}
                       >
                         <div className="flex items-center gap-2">
@@ -665,8 +666,8 @@ export default function TopicWindow() {
                         whileHover={{ x: 4 }}
                         onClick={() => handleContentClick(content)}
                         className={`w-full p-3 rounded-lg border transition-all text-left ${currentContent?.id === content.id
-                            ? 'bg-pink-500/20 border-pink-500/50'
-                            : 'bg-white/5 border-white/10 hover:border-pink-500/30'
+                          ? 'bg-pink-500/20 border-pink-500/50'
+                          : 'bg-white/5 border-white/10 hover:border-pink-500/30'
                           }`}
                       >
                         <div className="flex items-center gap-2">
@@ -688,8 +689,8 @@ export default function TopicWindow() {
                         whileHover={{ x: 4 }}
                         onClick={() => handleContentClick(content)}
                         className={`w-full p-3 rounded-lg border transition-all text-left ${currentContent?.id === content.id
-                            ? 'bg-pink-500/20 border-pink-500/50'
-                            : 'bg-white/5 border-white/10 hover:border-pink-500/30'
+                          ? 'bg-pink-500/20 border-pink-500/50'
+                          : 'bg-white/5 border-white/10 hover:border-pink-500/30'
                           }`}
                       >
                         <div className="flex items-center gap-2">
@@ -711,8 +712,8 @@ export default function TopicWindow() {
                         whileHover={{ x: 4 }}
                         onClick={() => handleContentClick(content)}
                         className={`w-full p-3 rounded-lg border transition-all text-left ${currentContent?.id === content.id
-                            ? 'bg-pink-500/20 border-pink-500/50'
-                            : 'bg-white/5 border-white/10 hover:border-pink-500/30'
+                          ? 'bg-pink-500/20 border-pink-500/50'
+                          : 'bg-white/5 border-white/10 hover:border-pink-500/30'
                           }`}
                       >
                         <div className="flex items-center gap-2">
@@ -857,8 +858,8 @@ export default function TopicWindow() {
                     >
                       <div
                         className={`max-w-[80%] px-4 py-2 rounded-lg ${msg.sender === 'user'
-                            ? 'bg-gradient-to-r from-pink-500 to-blue-500'
-                            : 'bg-white/10'
+                          ? 'bg-gradient-to-r from-pink-500 to-blue-500'
+                          : 'bg-white/10'
                           }`}
                       >
                         <p className="text-sm">{msg.text}</p>
